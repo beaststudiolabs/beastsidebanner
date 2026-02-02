@@ -1,0 +1,32 @@
+/**
+ * BEASTSIDE Filters - Main Stylesheet
+ *
+ * Entry point for all styles
+ */
+
+@import './components/filter-container.css';
+@import './components/character-indicator.css';
+@import './components/capture-controls.css';
+
+/* Global Reset */
+* {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+}
+
+body {
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+}
+
+/* Root container */
+#beastside-filters-root {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    z-index: 9999;
+}

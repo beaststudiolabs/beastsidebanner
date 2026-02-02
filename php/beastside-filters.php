@@ -22,52 +22,47 @@ define('BEASTSIDE_FILTERS_VERSION', '1.0.0');
 define('BEASTSIDE_FILTERS_PLUGIN_DIR', plugin_dir_path(__FILE__));
 define('BEASTSIDE_FILTERS_PLUGIN_URL', plugin_dir_url(__FILE__));
 
+// Load required classes
+require_once BEASTSIDE_FILTERS_PLUGIN_DIR . 'includes/class-browser-detection.php';
+require_once BEASTSIDE_FILTERS_PLUGIN_DIR . 'includes/class-asset-manager.php';
+require_once BEASTSIDE_FILTERS_PLUGIN_DIR . 'includes/class-template-loader.php';
+
 /**
  * Main plugin class
  */
 class Beastside_Filters {
 
     /**
-     * Initialize the plugin
+     * Single instance
      */
-    public function __construct() {
-        add_action('wp_enqueue_scripts', array($this, 'enqueue_scripts'));
-        add_shortcode('beastside_filters', array($this, 'render_shortcode'));
-        add_action('init', array($this, 'check_https'));
+    private static $instance = null;
+
+    /**
+     * Asset Manager instance
+     */
+    private $asset_manager;
+
+    /**
+     * Get singleton instance
+     */
+    public static function get_instance() {
+        if (self::$instance === null) {
+            self::$instance = new self();
+        }
+        return self::$instance;
     }
 
     /**
-     * Enqueue plugin scripts and styles
+     * Initialize the plugin
      */
-    public function enqueue_scripts() {
-        // Only load on pages with the shortcode
-        if (!is_singular() && !has_shortcode(get_post()->post_content, 'beastside_filters')) {
-            return;
-        }
+    private function __construct() {
+        $this->asset_manager = new Beastside_Filters_Asset_Manager();
 
-        // Enqueue main JavaScript (built by Vite)
-        wp_enqueue_script(
-            'beastside-filters-main',
-            BEASTSIDE_FILTERS_PLUGIN_URL . '../dist/js/main.js',
-            array(),
-            BEASTSIDE_FILTERS_VERSION,
-            true
-        );
+        // Register shortcode
+        add_shortcode('beastside_filters', array($this, 'render_shortcode'));
 
-        // Enqueue main stylesheet
-        wp_enqueue_style(
-            'beastside-filters-style',
-            BEASTSIDE_FILTERS_PLUGIN_URL . '../dist/css/main.css',
-            array(),
-            BEASTSIDE_FILTERS_VERSION
-        );
-
-        // Pass PHP variables to JavaScript
-        wp_localize_script('beastside-filters-main', 'beastsideFilters', array(
-            'ajaxUrl' => admin_url('admin-ajax.php'),
-            'nonce' => wp_create_nonce('beastside_filters_nonce'),
-            'modelsPath' => BEASTSIDE_FILTERS_PLUGIN_URL . '../assets/models/',
-        ));
+        // Add admin notices
+        add_action('admin_notices', array($this, 'admin_notices'));
     }
 
     /**
@@ -78,24 +73,48 @@ class Beastside_Filters {
             'mode' => 'full', // full or preview
         ), $atts);
 
-        ob_start();
-        include BEASTSIDE_FILTERS_PLUGIN_DIR . 'public/templates/filter-container.php';
-        return ob_get_clean();
+        // Use Template Loader
+        return Beastside_Filters_Template_Loader::get_template_html('filter-container.php', $atts);
     }
 
     /**
-     * Check if HTTPS is enabled (required for camera access)
+     * Show admin notices
      */
-    public function check_https() {
-        if (!is_ssl() && !is_admin()) {
-            add_action('wp_footer', function() {
-                echo '<div class="beastside-filters-https-warning" style="display:none;">
+    public function admin_notices() {
+        // Check if HTTPS is enabled
+        if (!is_ssl()) {
+            ?>
+            <div class="notice notice-warning">
+                <p>
+                    <strong>BEASTSIDE Filters:</strong>
                     HTTPS is required for camera access. Please enable SSL on your site.
-                </div>';
-            });
+                    <a href="https://wordpress.org/support/article/https-for-wordpress/" target="_blank">Learn more</a>
+                </p>
+            </div>
+            <?php
         }
+    }
+
+    /**
+     * Plugin activation hook
+     */
+    public static function activate() {
+        // Flush rewrite rules
+        flush_rewrite_rules();
+    }
+
+    /**
+     * Plugin deactivation hook
+     */
+    public static function deactivate() {
+        // Flush rewrite rules
+        flush_rewrite_rules();
     }
 }
 
+// Register activation/deactivation hooks
+register_activation_hook(__FILE__, array('Beastside_Filters', 'activate'));
+register_deactivation_hook(__FILE__, array('Beastside_Filters', 'deactivate'));
+
 // Initialize the plugin
-new Beastside_Filters();
+Beastside_Filters::get_instance();

@@ -1,0 +1,218 @@
+/**
+ * Filter Container Styles
+ *
+ * Main container for the filter interface with video and canvas layering
+ */
+
+.filter-container {
+    position: relative;
+    width: 100%;
+    height: 100%;
+    background: #000;
+    overflow: hidden;
+}
+
+/* Video Container - holds video and canvas overlay */
+.video-container {
+    position: relative;
+    width: 100%;
+    height: 100%;
+}
+
+/* Camera Video */
+#camera-video {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    transform: scaleX(-1); /* Mirror video for selfie mode */
+}
+
+/* Filter Canvas - Three.js renders here */
+#filter-canvas {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    pointer-events: none; /* Allow clicks to pass through */
+}
+
+/* Controls */
+.controls {
+    position: absolute;
+    top: 20px;
+    right: 20px;
+    z-index: 10;
+}
+
+/* Debug Info */
+.debug-info {
+    position: absolute;
+    top: 20px;
+    left: 20px;
+    z-index: 10;
+    font-family: 'Monaco', 'Menlo', 'Courier New', monospace;
+    font-size: 12px;
+    background: rgba(0, 0, 0, 0.6);
+    padding: 10px 15px;
+    border-radius: 8px;
+    backdrop-filter: blur(10px);
+    border: 1px solid rgba(255, 255, 255, 0.2);
+}
+
+.debug-info > div {
+    margin: 5px 0;
+    color: #fff;
+    font-weight: 600;
+}
+
+.btn-close {
+    background: rgba(0, 0, 0, 0.6);
+    color: #fff;
+    border: 2px solid rgba(255, 255, 255, 0.3);
+    border-radius: 8px;
+    padding: 10px 20px;
+    font-size: 14px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    backdrop-filter: blur(10px);
+}
+
+.btn-close:hover {
+    background: rgba(0, 0, 0, 0.8);
+    border-color: rgba(255, 255, 255, 0.6);
+}
+
+.btn-close:active {
+    transform: scale(0.95);
+}
+
+/* Error Message */
+.error-message {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    background: rgba(0, 0, 0, 0.95);
+    border-radius: 16px;
+    max-width: 400px;
+    width: 90%;
+    z-index: 100;
+    backdrop-filter: blur(20px);
+    border: 2px solid rgba(239, 68, 68, 0.5);
+    box-shadow: 0 8px 40px rgba(0, 0, 0, 0.8);
+    display: none;
+    align-items: center;
+    justify-content: center;
+}
+
+.error-content {
+    padding: 30px;
+    text-align: center;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 15px;
+}
+
+.error-icon {
+    font-size: 48px;
+    animation: shake 0.5s ease;
+}
+
+@keyframes shake {
+    0%, 100% { transform: translateX(0); }
+    25% { transform: translateX(-10px); }
+    75% { transform: translateX(10px); }
+}
+
+.error-title {
+    color: #fff;
+    font-size: 20px;
+    font-weight: 700;
+    margin: 0;
+    letter-spacing: 0.5px;
+}
+
+.error-message p {
+    color: rgba(255, 255, 255, 0.9);
+    font-size: 15px;
+    line-height: 1.6;
+    margin: 0;
+}
+
+.error-retry-btn,
+.error-close-btn {
+    background: linear-gradient(135deg, #ef4444 0%, #dc2626 100%);
+    border: none;
+    border-radius: 25px;
+    padding: 12px 30px;
+    font-size: 16px;
+    font-weight: 600;
+    color: #fff;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    margin-top: 10px;
+    box-shadow: 0 4px 15px rgba(239, 68, 68, 0.4);
+}
+
+.error-retry-btn:hover,
+.error-close-btn:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 6px 20px rgba(239, 68, 68, 0.6);
+}
+
+.error-retry-btn:active,
+.error-close-btn:active {
+    transform: translateY(0);
+}
+
+/* Mobile Optimization */
+@media (max-width: 768px) {
+    .controls {
+        top: 10px;
+        right: 10px;
+    }
+
+    .btn-close {
+        padding: 8px 16px;
+        font-size: 12px;
+    }
+
+    .error-message {
+        font-size: 14px;
+        padding: 15px 20px;
+        max-width: 90%;
+    }
+}
+
+/* Portrait Mode Optimization (primary use case) */
+@media (orientation: portrait) {
+    #camera-video,
+    #filter-canvas {
+        object-fit: cover;
+    }
+}
+
+/* Landscape Warning (show message to rotate) */
+@media (orientation: landscape) and (max-height: 500px) {
+    .filter-container::before {
+        content: 'Please rotate your device to portrait mode for the best experience';
+        position: absolute;
+        top: 50%;
+        left: 50%;
+        transform: translate(-50%, -50%);
+        background: rgba(0, 0, 0, 0.9);
+        color: #fff;
+        padding: 20px;
+        border-radius: 12px;
+        text-align: center;
+        z-index: 200;
+        font-size: 16px;
+        max-width: 80%;
+    }
+}

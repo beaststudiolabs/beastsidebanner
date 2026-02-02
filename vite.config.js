@@ -17,10 +17,22 @@ export default defineConfig({
           }
           return 'assets/[name]-[hash][extname]';
         },
+        manualChunks: {
+          // Separate vendor chunks for better caching
+          'three-vendor': ['three'],
+          'mediapipe-vendor': ['@mediapipe/face_mesh'],
+        },
       },
     },
     minify: 'terser',
-    sourcemap: true,
+    terserOptions: {
+      compress: {
+        drop_console: true, // Remove console logs in production
+        drop_debugger: true,
+      },
+    },
+    sourcemap: false, // Disable sourcemaps for production (reduce size)
+    chunkSizeWarningLimit: 600, // Increase limit (we have Three.js)
   },
   server: {
     port: 3000,

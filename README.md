@@ -21,64 +21,65 @@ Interactive face filter plugin that brings BEASTSIDE game characters to life thr
 
 ## Quick Start
 
-### Prerequisites
-- Node.js 18+
-- WordPress 6.0+
-- PHP 8.0+
-- HTTPS-enabled site (required for camera access)
+### Development (Current Phase 1)
 
-### Installation
-
-1. Clone and install dependencies:
 ```bash
-git clone <repo-url>
-cd beastsidebanner
+# Install dependencies
 npm install
-```
 
-2. Build for production:
-```bash
+# Start dev server at http://localhost:3000/
+npm run dev
+
+# Build for production
 npm run build
 ```
 
-3. Install in WordPress:
-- Copy entire plugin folder to `wp-content/plugins/`
-- Activate in WordPress admin
+**Testing Phase 1:**
+Open http://localhost:3000/ in your browser:
+1. Grant camera permission when prompted
+2. See your video feed (mirrored selfie mode)
+3. See orange rotating cube overlaid on video (placeholder for 3D character)
+4. Click Close button to verify UI
 
-4. Add to homepage:
-```php
-[beastside_filters]
-```
+**Expected:** Camera displays, Three.js cube rotates smoothly at 30fps+
 
-### Development
+### WordPress Installation (Phase 7)
 
-```bash
-npm run dev    # Start dev server with HMR
-npm run build  # Production build
-```
+1. Build for production: `npm run build`
+2. Copy plugin folder to `wp-content/plugins/`
+3. Activate in WordPress admin
+4. Add shortcode to page: `[beastside_filters]`
+
+*Note: WordPress integration will be completed in Phase 7*
 
 ## Project Structure
 
 ```
 beastsidebanner/
 ├── src/
-│   ├── js/              # JavaScript modules
-│   │   ├── main.js      # Entry point
-│   │   ├── camera.js    # Camera handling
-│   │   ├── face-tracking.js
-│   │   └── renderer.js  # Three.js renderer
-│   ├── css/             # Stylesheets
-│   ├── components/      # UI components
-│   └── utils/           # Helper functions
+│   ├── js/
+│   │   ├── main.js              # Entry point ✅
+│   │   ├── core/
+│   │   │   ├── FilterApp.js     # Main orchestrator ⭐ ✅
+│   │   │   ├── CameraManager.js # Camera access ✅
+│   │   │   ├── ThreeRenderer.js # Three.js rendering ✅
+│   │   │   ├── FaceTracker.js   # MediaPipe (Phase 2)
+│   │   │   ├── CharacterManager.js # 3D models (Phase 3)
+│   │   │   ├── MediaCapture.js  # Photo/video (Phase 5)
+│   │   │   └── UIController.js  # Gestures (Phase 4)
+│   │   └── utils/               # Helpers (Phase 2+)
+│   └── css/
+│       ├── main.css             # Global styles ✅
+│       └── components/
+│           └── filter-container.css ✅
 ├── assets/
-│   └── models/          # 3D character models (GLB)
-├── php/
-│   ├── beastside-filters.php  # Main plugin file
-│   ├── includes/        # Core functionality
-│   ├── admin/           # Admin interface
-│   └── public/          # Public-facing code
-├── dist/                # Built files (generated)
-└── docs/                # Documentation
+│   └── models/                  # 3D character models (Phase 3)
+├── php/                         # WordPress plugin (Phase 7)
+│   └── beastside-filters.php   # Main plugin file
+├── dist/                        # Built files (npm run build)
+├── docs/
+│   └── PROGRESS.md              # Implementation tracking
+└── index.html                   # Test page ✅
 ```
 
 ## Performance Targets
@@ -99,6 +100,26 @@ beastsidebanner/
 
 MIT
 
+## Implementation Status
+
+**Phase 1: Foundation** ✅ COMPLETE
+- Camera feed working
+- Three.js rendering pipeline
+- Placeholder cube rotating at 30fps+
+- Responsive layout (mobile-optimized)
+- Dev server: http://localhost:3000/
+
+**Phase 2: Face Tracking** - NEXT
+- MediaPipe Face Mesh integration
+- Blendshape calculation
+- Event system
+
+**Phases 3-8:** Pending (see docs/PROGRESS.md)
+
+**Timeline:** 2-3 weeks for full MVP
+
 ## Documentation
 
-See [PRD](/Users/calebsmiler/face-filter-prd.md) for complete product requirements.
+- **Implementation Plan:** `/Users/calebsmiler/face-filter-prd.md`
+- **Progress Tracking:** `docs/PROGRESS.md`
+- **Project Instructions:** `CLAUDE.md`
