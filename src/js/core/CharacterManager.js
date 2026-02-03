@@ -18,16 +18,19 @@ class CharacterManager {
         // Thumbnail generator for character selector
         this.thumbnailGenerator = new ThumbnailGenerator();
 
-        // Character configuration
+        // Get base path for models (WordPress or local dev)
+        this.modelsBasePath = this.getModelsBasePath();
+
+        // Character configuration (paths are relative to modelsBasePath)
         this.characters = [
-            { id: 'char1', name: 'Rafsby', path: '/assets/models/1.glb', loaded: false, thumbnail: null },
-            { id: 'char2', name: 'Rafsby 2', path: '/assets/models/1.glb', loaded: false, thumbnail: null },
+            { id: 'char1', name: 'Rafsby', path: '1.glb', loaded: false, thumbnail: null },
+            { id: 'char2', name: 'Rafsby 2', path: '1.glb', loaded: false, thumbnail: null },
             // Other characters commented out for now:
-            // { id: 'boy1', name: 'Boy #1', path: '/assets/models/boy1.glb', loaded: false },
-            // { id: 'girl1', name: 'Girl #1', path: '/assets/models/girl1.glb', loaded: false },
-            // { id: 'boy2', name: 'Boy #2', path: '/assets/models/boy2.glb', loaded: false },
-            // { id: 'girl2', name: 'Girl #2', path: '/assets/models/girl2.glb', loaded: false },
-            // { id: 'girl3', name: 'Girl #3', path: '/assets/models/girl3.glb', loaded: false }
+            // { id: 'boy1', name: 'Boy #1', path: 'boy1.glb', loaded: false },
+            // { id: 'girl1', name: 'Girl #1', path: 'girl1.glb', loaded: false },
+            // { id: 'boy2', name: 'Boy #2', path: 'boy2.glb', loaded: false },
+            // { id: 'girl2', name: 'Girl #2', path: 'girl2.glb', loaded: false },
+            // { id: 'girl3', name: 'Girl #3', path: 'girl3.glb', loaded: false }
         ];
 
         this.currentCharacterIndex = 0;
@@ -137,6 +140,28 @@ class CharacterManager {
     }
 
     /**
+     * Get base path for model files
+     * Uses WordPress config if available, otherwise uses relative path for local dev
+     */
+    getModelsBasePath() {
+        // Check for WordPress configuration
+        if (typeof window !== 'undefined' && window.beastsideFiltersConfig && window.beastsideFiltersConfig.modelsPath) {
+            console.log('CharacterManager: Using WordPress models path:', window.beastsideFiltersConfig.modelsPath);
+            return window.beastsideFiltersConfig.modelsPath;
+        }
+        // Local development fallback
+        console.log('CharacterManager: Using local development path');
+        return '/assets/models/';
+    }
+
+    /**
+     * Get full path for a model file
+     */
+    getModelPath(relativePath) {
+        return this.modelsBasePath + relativePath;
+    }
+
+    /**
      * Linear interpolation helper
      */
     lerp(current, target, factor) {
@@ -191,7 +216,8 @@ class CharacterManager {
             if (character.thumbnail) continue;
 
             try {
-                const thumbnail = await this.thumbnailGenerator.generateThumbnail(character.path);
+                const fullPath = this.getModelPath(character.path);
+                const thumbnail = await this.thumbnailGenerator.generateThumbnail(fullPath);
                 if (thumbnail) {
                     character.thumbnail = thumbnail;
                     this.events.emit('thumbnailGenerated', { index: i, character, thumbnail });
@@ -293,7 +319,8 @@ class CharacterManager {
         this.loadingProgress = 0;
 
         try {
-            const gltf = await this.loadGLTF(character.path);
+            const fullPath = this.getModelPath(character.path);
+            const gltf = await this.loadGLTF(fullPath);
 
             // Store the loaded model
             character.model = gltf.scene;
