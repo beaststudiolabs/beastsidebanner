@@ -12,6 +12,78 @@
     overflow: hidden;
 }
 
+/* ==========================================
+   Loading Overlay
+   ========================================== */
+
+.loading-overlay {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background: linear-gradient(135deg, #1a1a2e 0%, #16213e 50%, #0f0f23 100%);
+    z-index: 1000;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: opacity 0.5s ease, visibility 0.5s ease;
+}
+
+.loading-overlay.hidden {
+    opacity: 0;
+    visibility: hidden;
+    pointer-events: none;
+}
+
+.loading-content {
+    text-align: center;
+    padding: 40px;
+}
+
+.loading-spinner {
+    width: 60px;
+    height: 60px;
+    margin: 0 auto 24px;
+    border: 4px solid rgba(255, 107, 53, 0.2);
+    border-top-color: #ff6b35;
+    border-radius: 50%;
+    animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+    to {
+        transform: rotate(360deg);
+    }
+}
+
+.loading-text {
+    color: #fff;
+    font-size: 20px;
+    font-weight: 600;
+    margin-bottom: 8px;
+    letter-spacing: 0.5px;
+}
+
+.loading-subtext {
+    color: rgba(255, 255, 255, 0.6);
+    font-size: 14px;
+    font-weight: 400;
+}
+
+/* Reduced motion - no spinner animation */
+@media (prefers-reduced-motion: reduce) {
+    .loading-spinner {
+        animation: none;
+        border-top-color: #ff6b35;
+        border-right-color: #ff6b35;
+    }
+
+    .loading-overlay {
+        transition: none;
+    }
+}
+
 /* Video Container - holds video and canvas overlay */
 .video-container {
     position: relative;
@@ -40,19 +112,19 @@
     pointer-events: none; /* Allow clicks to pass through */
 }
 
-/* Controls */
+/* Controls - with safe area for iOS notch */
 .controls {
     position: absolute;
-    top: 20px;
-    right: 20px;
+    top: calc(20px + env(safe-area-inset-top, 0px));
+    right: calc(20px + env(safe-area-inset-right, 0px));
     z-index: 10;
 }
 
-/* Debug Info */
+/* Debug Info - Hidden by default, toggle with D key */
 .debug-info {
     position: absolute;
-    top: 20px;
-    left: 20px;
+    top: calc(20px + env(safe-area-inset-top, 0px));
+    left: calc(20px + env(safe-area-inset-left, 0px));
     z-index: 10;
     font-family: 'Monaco', 'Menlo', 'Courier New', monospace;
     font-size: 12px;
@@ -61,6 +133,12 @@
     border-radius: 8px;
     backdrop-filter: blur(10px);
     border: 1px solid rgba(255, 255, 255, 0.2);
+    /* Hidden by default - show only in dev mode or when toggled */
+    display: none;
+}
+
+.debug-info.visible {
+    display: block;
 }
 
 .debug-info > div {
@@ -69,26 +147,45 @@
     font-weight: 600;
 }
 
+/* Close button - consistent with all buttons */
 .btn-close {
-    background: rgba(0, 0, 0, 0.6);
+    width: 56px;
+    height: 56px;
+    border-radius: 50%;
+    background: rgba(0, 0, 0, 0.5);
     color: #fff;
-    border: 2px solid rgba(255, 255, 255, 0.3);
-    border-radius: 8px;
-    padding: 10px 20px;
-    font-size: 14px;
-    font-weight: 600;
+    border: 1.5px solid rgba(255, 255, 255, 0.2);
+    padding: 0;
+    font-size: 0; /* Hide text, show icon */
     cursor: pointer;
     transition: all 0.2s ease;
     backdrop-filter: blur(10px);
+    box-shadow: 0 2px 12px rgba(0, 0, 0, 0.3);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.btn-close svg {
+    width: 22px;
+    height: 22px;
+    stroke: #fff;
+    stroke-width: 2;
 }
 
 .btn-close:hover {
-    background: rgba(0, 0, 0, 0.8);
-    border-color: rgba(255, 255, 255, 0.6);
+    background: rgba(239, 68, 68, 0.8);
+    border-color: #ef4444;
+    transform: scale(1.05);
 }
 
 .btn-close:active {
     transform: scale(0.95);
+}
+
+.btn-close:focus-visible {
+    outline: 3px solid #ff6b35;
+    outline-offset: 3px;
 }
 
 /* Error Message */
@@ -122,6 +219,14 @@
 .error-icon {
     font-size: 48px;
     animation: shake 0.5s ease;
+    color: #ef4444;
+}
+
+.error-icon svg {
+    width: 48px;
+    height: 48px;
+    stroke: #ef4444;
+    stroke-width: 2;
 }
 
 @keyframes shake {
@@ -158,6 +263,17 @@
     transition: all 0.2s ease;
     margin-top: 10px;
     box-shadow: 0 4px 15px rgba(239, 68, 68, 0.4);
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.error-retry-btn svg,
+.error-close-btn svg {
+    width: 18px;
+    height: 18px;
+    stroke: #fff;
+    stroke-width: 2;
 }
 
 .error-retry-btn:hover,
@@ -176,11 +292,6 @@
     .controls {
         top: 10px;
         right: 10px;
-    }
-
-    .btn-close {
-        padding: 8px 16px;
-        font-size: 12px;
     }
 
     .error-message {
@@ -214,5 +325,242 @@
         z-index: 200;
         font-size: 16px;
         max-width: 80%;
+    }
+}
+
+/* ==========================================
+   Skin Color Picker
+   ========================================== */
+
+.skin-color-picker {
+    position: absolute;
+    top: calc(88px + env(safe-area-inset-top, 0px));
+    right: calc(20px + env(safe-area-inset-right, 0px));
+    z-index: 15;
+}
+
+.skin-picker-toggle {
+    width: 56px;
+    height: 56px;
+    border-radius: 50%;
+    background: rgba(0, 0, 0, 0.5);
+    border: 1.5px solid rgba(255, 255, 255, 0.2);
+    color: #fff;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: all 0.2s ease;
+    backdrop-filter: blur(10px);
+    box-shadow: 0 2px 12px rgba(0, 0, 0, 0.3);
+}
+
+.skin-picker-toggle:hover {
+    background: rgba(0, 0, 0, 0.8);
+    border-color: rgba(255, 255, 255, 0.6);
+    transform: scale(1.05);
+}
+
+.skin-picker-toggle:active {
+    transform: scale(0.95);
+}
+
+.skin-picker-toggle:focus-visible {
+    outline: 3px solid #ff6b35;
+    outline-offset: 3px;
+}
+
+.skin-picker-toggle svg {
+    width: 22px;
+    height: 22px;
+    stroke: #fff;
+    stroke-width: 2;
+}
+
+.skin-picker-panel {
+    position: absolute;
+    top: 64px;
+    right: 0;
+    background: rgba(0, 0, 0, 0.9);
+    border-radius: 12px;
+    padding: 12px;
+    min-width: 200px;
+    backdrop-filter: blur(20px);
+    border: 1px solid rgba(255, 255, 255, 0.2);
+    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.5);
+    animation: fadeIn 0.2s ease;
+}
+
+@keyframes fadeIn {
+    from {
+        opacity: 0;
+        transform: translateY(-10px);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+.skin-picker-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 12px;
+    padding-bottom: 8px;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.skin-picker-header span {
+    color: #fff;
+    font-size: 14px;
+    font-weight: 600;
+}
+
+.skin-reset-btn {
+    width: 28px;
+    height: 28px;
+    border-radius: 6px;
+    background: rgba(255, 255, 255, 0.1);
+    border: none;
+    color: #fff;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: all 0.2s ease;
+}
+
+.skin-reset-btn:hover {
+    background: rgba(255, 255, 255, 0.2);
+}
+
+.skin-reset-btn:focus-visible {
+    outline: 2px solid #ff6b35;
+    outline-offset: 2px;
+}
+
+.skin-reset-btn svg {
+    width: 16px;
+    height: 16px;
+    stroke: #fff;
+    stroke-width: 2;
+}
+
+.skin-tones {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 8px;
+}
+
+.skin-swatch {
+    width: 40px;
+    height: 40px;
+    border-radius: 50%;
+    border: 3px solid transparent;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
+}
+
+.skin-swatch:hover {
+    transform: scale(1.1);
+    border-color: rgba(255, 255, 255, 0.5);
+}
+
+.skin-swatch.selected {
+    border-color: #fff;
+    box-shadow: 0 0 0 2px rgba(255, 255, 255, 0.3), 0 4px 12px rgba(0, 0, 0, 0.4);
+}
+
+.skin-swatch:focus-visible {
+    outline: 3px solid #ff6b35;
+    outline-offset: 3px;
+}
+
+.skin-custom {
+    width: 40px;
+    height: 40px;
+    border-radius: 50%;
+    cursor: pointer;
+    position: relative;
+    overflow: hidden;
+    background: conic-gradient(
+        red, yellow, lime, aqua, blue, magenta, red
+    );
+    border: 2px solid rgba(255, 255, 255, 0.3);
+    transition: all 0.2s ease;
+}
+
+.skin-custom:hover {
+    transform: scale(1.1);
+    border-color: rgba(255, 255, 255, 0.6);
+}
+
+.skin-custom-input {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    opacity: 0;
+    cursor: pointer;
+}
+
+.skin-custom-icon {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    pointer-events: none;
+}
+
+.skin-custom-icon svg {
+    width: 18px;
+    height: 18px;
+    stroke: #fff;
+    stroke-width: 2;
+    filter: drop-shadow(0 1px 2px rgba(0, 0, 0, 0.5));
+}
+
+/* Mobile adjustments */
+@media (max-width: 768px) {
+    .skin-color-picker {
+        top: calc(112px + env(safe-area-inset-top, 0px));
+        right: calc(10px + env(safe-area-inset-right, 0px));
+    }
+
+    .skin-picker-panel {
+        min-width: 180px;
+        padding: 10px;
+    }
+
+    .skin-swatch {
+        width: 36px;
+        height: 36px;
+    }
+
+    .skin-custom {
+        width: 36px;
+        height: 36px;
+    }
+}
+
+/* Reduced motion support - disable animations for accessibility */
+@media (prefers-reduced-motion: reduce) {
+    .skin-picker-panel {
+        animation: none;
+    }
+
+    .skin-picker-toggle,
+    .skin-swatch,
+    .skin-custom,
+    .skin-reset-btn,
+    .btn-close {
+        transition: none;
+    }
+
+    @keyframes shake {
+        0%, 100% { transform: translateX(0); }
     }
 }

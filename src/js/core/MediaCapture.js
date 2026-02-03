@@ -24,6 +24,11 @@ class MediaCapture {
 
         // Audio stream
         this.audioStream = null;
+
+        // Composite canvas for combining video + 3D overlay
+        this.compositeCanvas = null;
+        this.compositeCtx = null;
+        this.compositeAnimationId = null;
     }
 
     /**
@@ -31,6 +36,10 @@ class MediaCapture {
      */
     async initialize() {
         console.log('MediaCapture: Initializing...');
+
+        // Create composite canvas for combining video + 3D overlay
+        this.compositeCanvas = document.createElement('canvas');
+        this.compositeCtx = this.compositeCanvas.getContext('2d');
 
         try {
             // Request audio permission for video recording
@@ -49,14 +58,85 @@ class MediaCapture {
     }
 
     /**
-     * Capture photo from canvas
+     * Draw composite frame (video + 3D overlay)
+     */
+    drawCompositeFrame() {
+        // Get dimensions - prefer video dimensions, fall back to canvas
+        const width = this.video.videoWidth || this.canvas.width || 640;
+        const height = this.video.videoHeight || this.canvas.height || 480;
+
+        // Ensure composite canvas is sized correctly
+        if (this.compositeCanvas.width !== width || this.compositeCanvas.height !== height) {
+            this.compositeCanvas.width = width;
+            this.compositeCanvas.height = height;
+            console.log(`MediaCapture: Composite canvas sized to ${width}x${height}`);
+        }
+
+        // Clear the canvas first
+        this.compositeCtx.clearRect(0, 0, width, height);
+
+        // Draw video first (background) - mirrored to match selfie view
+        if (this.video.readyState >= 2) {
+            this.compositeCtx.save();
+            this.compositeCtx.translate(width, 0);
+            this.compositeCtx.scale(-1, 1);
+            this.compositeCtx.drawImage(this.video, 0, 0, width, height);
+            this.compositeCtx.restore();
+        }
+
+        // Draw 3D canvas overlay on top (the WebGL canvas with the filter)
+        // The canvas should be drawn at its actual display size, not stretched
+        // Get the actual display dimensions from CSS
+        const canvasDisplayWidth = this.canvas.clientWidth || this.canvas.width;
+        const canvasDisplayHeight = this.canvas.clientHeight || this.canvas.height;
+
+        // Calculate scaling to fit the composite canvas while maintaining aspect ratio
+        const scaleX = width / canvasDisplayWidth;
+        const scaleY = height / canvasDisplayHeight;
+
+        // Draw the 3D canvas, scaling from its render size to composite size
+        // Use the same aspect ratio as the video to avoid skewing
+        this.compositeCtx.drawImage(
+            this.canvas,
+            0, 0, this.canvas.width, this.canvas.height,  // Source rect (full canvas)
+            0, 0, width, height                             // Dest rect (full composite)
+        );
+    }
+
+    /**
+     * Start composite rendering loop (for video recording)
+     */
+    startCompositeLoop() {
+        const loop = () => {
+            if (!this.isRecording) return;
+            this.drawCompositeFrame();
+            this.compositeAnimationId = requestAnimationFrame(loop);
+        };
+        loop();
+    }
+
+    /**
+     * Stop composite rendering loop
+     */
+    stopCompositeLoop() {
+        if (this.compositeAnimationId) {
+            cancelAnimationFrame(this.compositeAnimationId);
+            this.compositeAnimationId = null;
+        }
+    }
+
+    /**
+     * Capture photo from composite canvas (video + 3D overlay)
      */
     capturePhoto() {
         console.log('MediaCapture: Capturing photo...');
 
         try {
-            // Capture canvas as blob
-            this.canvas.toBlob((blob) => {
+            // Draw composite frame first
+            this.drawCompositeFrame();
+
+            // Capture composite canvas as blob
+            this.compositeCanvas.toBlob((blob) => {
                 if (!blob) {
                     throw new Error('Failed to capture canvas');
                 }
@@ -89,8 +169,15 @@ class MediaCapture {
         console.log('MediaCapture: Starting video recording...');
 
         try {
-            // Create stream from canvas
-            const canvasStream = this.canvas.captureStream(30); // 30 FPS
+            // Initialize composite canvas size
+            this.drawCompositeFrame();
+
+            // Start composite rendering loop
+            this.isRecording = true;
+            this.startCompositeLoop();
+
+            // Create stream from composite canvas (video + 3D overlay)
+            const canvasStream = this.compositeCanvas.captureStream(30); // 30 FPS
 
             // Combine canvas video with audio
             let combinedStream;
@@ -135,7 +222,6 @@ class MediaCapture {
             // Start recording
             this.recordedChunks = [];
             this.mediaRecorder.start(100); // Collect data every 100ms
-            this.isRecording = true;
             this.recordingStartTime = Date.now();
 
             // Auto-stop after max duration
@@ -169,6 +255,7 @@ class MediaCapture {
         try {
             this.mediaRecorder.stop();
             this.isRecording = false;
+            this.stopCompositeLoop();
         } catch (error) {
             console.error('MediaCapture: Error stopping recording', error);
         }
@@ -186,16 +273,18 @@ class MediaCapture {
             const blob = new Blob(this.recordedChunks, { type: mimeType });
 
             const duration = Date.now() - this.recordingStartTime;
+            const extension = this.getFileExtension(mimeType);
 
             this.lastCapturedVideo = {
                 blob,
                 url: URL.createObjectURL(blob),
                 timestamp: Date.now(),
                 duration,
-                filename: `beastside-filter-${Date.now()}.webm`
+                filename: `beastside-filter-${Date.now()}.${extension}`,
+                format: extension.toUpperCase()
             };
 
-            console.log(`MediaCapture: Video recorded (${(duration / 1000).toFixed(1)}s, ${(blob.size / 1024 / 1024).toFixed(2)}MB)`);
+            console.log(`MediaCapture: Video recorded as ${extension.toUpperCase()} (${(duration / 1000).toFixed(1)}s, ${(blob.size / 1024 / 1024).toFixed(2)}MB)`);
             this.events.emit('videoRecorded', this.lastCapturedVideo);
 
             // Clean up
@@ -210,23 +299,51 @@ class MediaCapture {
 
     /**
      * Get best supported MIME type for recording
+     * Prioritizes MP4 for better compatibility, falls back to WebM
      */
     getBestMimeType() {
-        const types = [
-            'video/webm;codecs=vp9,opus',
-            'video/webm;codecs=vp8,opus',
-            'video/webm;codecs=h264,opus',
-            'video/webm',
+        // Prioritize MP4 (better compatibility for sharing)
+        const mp4Types = [
+            'video/mp4;codecs=h264,aac',
+            'video/mp4;codecs=avc1',
             'video/mp4'
         ];
 
-        for (const type of types) {
+        // Fallback to WebM (Chrome/Firefox)
+        const webmTypes = [
+            'video/webm;codecs=vp9,opus',
+            'video/webm;codecs=vp8,opus',
+            'video/webm;codecs=h264,opus',
+            'video/webm'
+        ];
+
+        // Try MP4 first
+        for (const type of mp4Types) {
             if (MediaRecorder.isTypeSupported(type)) {
+                console.log('MediaCapture: MP4 supported - great for sharing!');
+                return type;
+            }
+        }
+
+        // Fall back to WebM
+        for (const type of webmTypes) {
+            if (MediaRecorder.isTypeSupported(type)) {
+                console.log('MediaCapture: Using WebM (MP4 not supported by this browser)');
                 return type;
             }
         }
 
         return ''; // Browser default
+    }
+
+    /**
+     * Get file extension based on MIME type
+     */
+    getFileExtension(mimeType) {
+        if (mimeType.startsWith('video/mp4')) {
+            return 'mp4';
+        }
+        return 'webm';
     }
 
     /**
@@ -327,7 +444,9 @@ class MediaCapture {
         console.log('MediaCapture: Sharing video...');
 
         try {
-            const file = new File([video.blob], video.filename, { type: video.blob.type });
+            // Use correct MIME type based on format (fallback to blob type)
+            const mimeType = video.format === 'MP4' ? 'video/mp4' : (video.blob.type || 'video/webm');
+            const file = new File([video.blob], video.filename, { type: mimeType });
 
             await navigator.share({
                 title: 'BEASTSIDE Filter',
@@ -335,7 +454,7 @@ class MediaCapture {
                 files: [file]
             });
 
-            console.log('MediaCapture: Video shared');
+            console.log(`MediaCapture: Video shared as ${video.format}`);
             this.events.emit('videoShared', video);
 
         } catch (error) {

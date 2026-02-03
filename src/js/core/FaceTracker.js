@@ -146,43 +146,68 @@ class FaceTracker {
 
     /**
      * Calculate face position and rotation from landmarks
+     * Uses proper 3D head pose estimation from multiple landmark points
      */
     calculateFaceTransform(landmarks) {
-        // Use key landmarks for face center and orientation
-        const noseTip = landmarks[1];        // Center point
-        const leftEye = landmarks[33];       // Left eye outer corner
-        const rightEye = landmarks[263];     // Right eye outer corner
-        const jawBottom = landmarks[152];    // Chin
+        // Key landmarks for head pose estimation
+        const noseTip = landmarks[1];           // Nose tip
+        const noseBridge = landmarks[6];        // Between eyes
+        const chin = landmarks[152];            // Bottom of chin
+        const leftEyeOuter = landmarks[33];     // Left eye outer corner
+        const rightEyeOuter = landmarks[263];   // Right eye outer corner
+        const leftEyeInner = landmarks[133];    // Left eye inner corner
+        const rightEyeInner = landmarks[362];   // Right eye inner corner
+        const leftMouth = landmarks[61];        // Left mouth corner
+        const rightMouth = landmarks[291];      // Right mouth corner
+        const forehead = landmarks[10];         // Top of forehead
 
-        // Calculate face center (normalized -1 to 1)
+        // === FACE CENTER (position) ===
+        // Use nose bridge as the center point
         const faceCenter = {
-            x: (noseTip.x - 0.5) * 2,      // Convert 0-1 to -1 to 1
-            y: -(noseTip.y - 0.5) * 2,     // Invert Y and convert
-            z: noseTip.z || 0               // Z depth (if available)
+            x: (noseBridge.x - 0.5) * 2,      // Convert 0-1 to -1 to 1
+            y: -(noseBridge.y - 0.5) * 2,     // Invert Y and convert
+            z: noseBridge.z || 0               // Z depth
         };
 
-        // Calculate face rotation
+        // === FACE SCALE ===
+        // Based on distance between eyes (more stable than single measurement)
         const eyeDistance = Math.sqrt(
-            Math.pow(rightEye.x - leftEye.x, 2) +
-            Math.pow(rightEye.y - leftEye.y, 2)
+            Math.pow(rightEyeOuter.x - leftEyeOuter.x, 2) +
+            Math.pow(rightEyeOuter.y - leftEyeOuter.y, 2) +
+            Math.pow((rightEyeOuter.z || 0) - (leftEyeOuter.z || 0), 2)
         );
+        const scale = eyeDistance * 10;
 
-        // Roll (head tilt)
-        const roll = Math.atan2(rightEye.y - leftEye.y, rightEye.x - leftEye.x);
+        // === HEAD ROTATION ===
 
-        // Yaw (left-right turn) - estimated from eye position
-        const eyeCenter = {
-            x: (leftEye.x + rightEye.x) / 2,
-            y: (leftEye.y + rightEye.y) / 2
-        };
-        const yaw = (eyeCenter.x - 0.5) * Math.PI * 0.5; // Rough estimate
+        // YAW (left-right head turn)
+        // Calculate from the difference in Z depth between left and right side of face
+        const leftZ = (leftEyeOuter.z + leftEyeInner.z + leftMouth.z) / 3;
+        const rightZ = (rightEyeOuter.z + rightEyeInner.z + rightMouth.z) / 3;
+        const zDiff = leftZ - rightZ;
+        // Also use X position difference of nose relative to eye center
+        const eyeCenterX = (leftEyeOuter.x + rightEyeOuter.x) / 2;
+        const noseOffsetX = noseTip.x - eyeCenterX;
+        // Combine both signals for more accurate yaw (INVERTED for correct direction)
+        const yaw = -((zDiff * 4) + (noseOffsetX * 3));
 
-        // Pitch (up-down tilt) - estimated from nose-to-jaw ratio
-        const faceHeight = Math.abs(jawBottom.y - eyeCenter.y);
-        const pitch = (faceHeight - 0.25) * Math.PI; // Rough estimate
+        // PITCH (up-down head tilt)
+        // Calculate from vertical relationship between forehead, nose, and chin
+        const foreheadToNoseY = noseBridge.y - forehead.y;
+        const noseToChinY = chin.y - noseBridge.y;
+        const verticalRatio = foreheadToNoseY / (noseToChinY + 0.001);
+        // Also use Z depth difference between nose tip and nose bridge
+        const noseZDiff = (noseTip.z || 0) - (noseBridge.z || 0);
+        // Combine signals (INVERTED for correct direction)
+        const pitch = -(((verticalRatio - 0.8) * 2) + (noseZDiff * 5));
 
-        // Face scale (distance from camera)
-        const scale = eyeDistance * 10; // Normalize to reasonable range
+        // ROLL (head tilt - ear to shoulder)
+        // Calculate from angle of line between eyes
+        const rollAngle = Math.atan2(
+            rightEyeOuter.y - leftEyeOuter.y,
+            rightEyeOuter.x - leftEyeOuter.x
+        );
+        const roll = rollAngle;
 
         return {
             position: faceCenter,

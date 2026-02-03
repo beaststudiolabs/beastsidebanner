@@ -4,10 +4,10 @@
  * Photo/video capture buttons and preview modal
  */
 
-/* Capture Controls Container */
+/* Capture Controls Container - with safe area for home indicator */
 .capture-controls {
     position: absolute;
-    bottom: 120px;
+    bottom: calc(160px + env(safe-area-inset-bottom, 0px));
     left: 50%;
     transform: translateX(-50%);
     display: flex;
@@ -16,27 +16,36 @@
     z-index: 15;
 }
 
-/* Capture Buttons */
+/* Capture Buttons - consistent with X and skin picker buttons */
 .btn-capture {
-    width: 70px;
-    height: 70px;
+    width: 56px;
+    height: 56px;
     border-radius: 50%;
-    border: 4px solid rgba(255, 255, 255, 0.9);
-    background: rgba(255, 255, 255, 0.2);
+    border: 1.5px solid rgba(255, 255, 255, 0.2);
+    background: rgba(0, 0, 0, 0.5);
     backdrop-filter: blur(10px);
-    font-size: 32px;
     cursor: pointer;
     transition: all 0.2s ease;
-    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.3);
+    box-shadow: 0 2px 12px rgba(0, 0, 0, 0.3);
     display: flex;
     align-items: center;
     justify-content: center;
+    color: #fff;
+    padding: 0;
+}
+
+/* Lucide icons in capture buttons */
+.btn-capture svg {
+    width: 22px;
+    height: 22px;
+    stroke: #fff;
+    stroke-width: 2;
 }
 
 .btn-capture:hover {
-    transform: scale(1.1);
-    background: rgba(255, 255, 255, 0.3);
-    border-color: #fff;
+    transform: scale(1.05);
+    background: rgba(0, 0, 0, 0.8);
+    border-color: rgba(255, 255, 255, 0.6);
 }
 
 .btn-capture:active {
@@ -48,11 +57,23 @@
     cursor: not-allowed;
 }
 
+/* Focus state for keyboard navigation */
+.btn-capture:focus-visible {
+    outline: 3px solid #ff6b35;
+    outline-offset: 3px;
+    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.3), 0 0 0 6px rgba(255, 107, 53, 0.3);
+}
+
 /* Stop Button (recording) */
 .btn-stop {
     background: rgba(239, 68, 68, 0.9); /* Red background */
     border-color: #ef4444;
     animation: pulse 1.5s ease-in-out infinite;
+}
+
+.btn-stop svg {
+    fill: #fff;
+    stroke: #fff;
 }
 
 @keyframes pulse {
@@ -119,26 +140,30 @@
     gap: 20px;
 }
 
-/* Preview Close Button */
+/* Preview Close Button - consistent with all buttons */
 .preview-close {
     position: absolute;
-    top: -50px;
+    top: -72px;
     right: 0;
-    background: none;
-    border: none;
+    width: 56px;
+    height: 56px;
+    border-radius: 50%;
+    background: rgba(0, 0, 0, 0.5);
+    border: 1.5px solid rgba(255, 255, 255, 0.2);
     color: #fff;
-    font-size: 48px;
     cursor: pointer;
-    width: 50px;
-    height: 50px;
     display: flex;
     align-items: center;
     justify-content: center;
-    transition: transform 0.2s ease;
+    transition: all 0.2s ease;
+    backdrop-filter: blur(10px);
+    box-shadow: 0 2px 12px rgba(0, 0, 0, 0.3);
 }
 
 .preview-close:hover {
-    transform: scale(1.2);
+    transform: scale(1.05);
+    background: rgba(0, 0, 0, 0.8);
+    border-color: rgba(255, 255, 255, 0.6);
 }
 
 /* Preview Image/Video */
@@ -150,77 +175,73 @@
     box-shadow: 0 8px 40px rgba(0, 0, 0, 0.8);
 }
 
-/* Preview Actions */
+/* Preview Actions - circular icon buttons for consistency */
 .preview-actions {
     display: flex;
-    gap: 15px;
-    margin-top: 10px;
+    gap: 20px;
+    margin-top: 24px;
 }
 
 .btn-preview {
-    background: rgba(255, 255, 255, 0.15);
-    border: 2px solid rgba(255, 255, 255, 0.3);
-    border-radius: 30px;
-    padding: 12px 24px;
-    font-size: 16px;
-    font-weight: 600;
+    width: 56px;
+    height: 56px;
+    border-radius: 50%;
+    background: rgba(0, 0, 0, 0.5);
+    border: 1.5px solid rgba(255, 255, 255, 0.2);
     color: #fff;
     cursor: pointer;
     transition: all 0.2s ease;
     backdrop-filter: blur(10px);
+    box-shadow: 0 2px 12px rgba(0, 0, 0, 0.3);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 0;
+    font-size: 0; /* Hide text, icon only */
+}
+
+/* Lucide icons in preview buttons */
+.btn-preview svg {
+    width: 22px;
+    height: 22px;
+    stroke: #fff;
+    stroke-width: 2;
+}
+
+/* Preview close button icon */
+.preview-close svg {
+    width: 22px;
+    height: 22px;
+    stroke: #fff;
+    stroke-width: 2;
 }
 
 .btn-preview:hover {
-    background: rgba(255, 255, 255, 0.25);
-    border-color: rgba(255, 255, 255, 0.5);
-    transform: translateY(-2px);
+    transform: scale(1.05);
+    background: rgba(0, 0, 0, 0.8);
+    border-color: rgba(255, 255, 255, 0.6);
 }
 
 .btn-preview:active {
-    transform: translateY(0);
+    transform: scale(0.95);
 }
 
-.btn-download {
-    background: rgba(34, 197, 94, 0.2);
-    border-color: rgba(34, 197, 94, 0.5);
+/* Focus state for keyboard navigation */
+.btn-preview:focus-visible {
+    outline: 3px solid #ff6b35;
+    outline-offset: 3px;
 }
 
-.btn-download:hover {
-    background: rgba(34, 197, 94, 0.3);
-    border-color: rgba(34, 197, 94, 0.7);
-}
-
-.btn-share {
-    background: rgba(59, 130, 246, 0.2);
-    border-color: rgba(59, 130, 246, 0.5);
-}
-
-.btn-share:hover {
-    background: rgba(59, 130, 246, 0.3);
-    border-color: rgba(59, 130, 246, 0.7);
-}
-
-.btn-retake {
-    background: rgba(239, 68, 68, 0.2);
-    border-color: rgba(239, 68, 68, 0.5);
-}
-
-.btn-retake:hover {
-    background: rgba(239, 68, 68, 0.3);
-    border-color: rgba(239, 68, 68, 0.7);
+.preview-close:focus-visible {
+    outline: 3px solid #ff6b35;
+    outline-offset: 3px;
 }
 
 /* Mobile Optimization */
 @media (max-width: 768px) {
     .capture-controls {
-        bottom: 100px;
-        gap: 15px;
-    }
-
-    .btn-capture {
-        width: 60px;
-        height: 60px;
-        font-size: 28px;
+        bottom: calc(140px + env(safe-area-inset-bottom, 0px));
+        gap: 16px;
     }
 
     .recording-timer {
@@ -234,27 +255,18 @@
     }
 
     .preview-actions {
-        flex-direction: column;
-        width: 100%;
-        gap: 10px;
+        gap: 16px;
     }
 
-    .btn-preview {
-        width: 100%;
-        padding: 14px;
+    .preview-close {
+        top: -72px;
     }
 }
 
 /* Small screens */
 @media (max-height: 600px) {
     .capture-controls {
-        bottom: 80px;
-    }
-
-    .btn-capture {
-        width: 50px;
-        height: 50px;
-        font-size: 24px;
+        bottom: calc(80px + env(safe-area-inset-bottom, 0px));
     }
 
     .preview-image,
@@ -266,13 +278,30 @@
 /* Landscape mode (mobile) */
 @media (orientation: landscape) and (max-height: 500px) {
     .capture-controls {
-        bottom: 60px;
-        gap: 10px;
+        bottom: calc(60px + env(safe-area-inset-bottom, 0px));
+        gap: 16px;
+    }
+}
+
+/* Reduced motion support - disable animations for accessibility */
+@media (prefers-reduced-motion: reduce) {
+    .btn-stop {
+        animation: none;
+        box-shadow: 0 4px 20px rgba(239, 68, 68, 0.6);
     }
 
-    .btn-capture {
-        width: 50px;
-        height: 50px;
-        font-size: 24px;
+    .recording-timer {
+        animation: none;
+        opacity: 1;
+    }
+
+    .preview-modal {
+        animation: none;
+    }
+
+    .btn-capture,
+    .btn-preview,
+    .preview-close {
+        transition: none;
     }
 }

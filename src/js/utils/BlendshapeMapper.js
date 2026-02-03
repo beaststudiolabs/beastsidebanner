@@ -51,8 +51,46 @@ class BlendshapeMapper {
             noseBottom: 168
         };
 
-        // Store baseline measurements (calculated on first frame)
-        this.baseline = null;
+        // =====================================================
+        // BASELINE VALUES - Tweak these to calibrate expressions
+        // =====================================================
+        // These represent the "neutral" eye height from MediaPipe
+        // LOWER = eyes appear MORE OPEN at rest (less blink at neutral)
+        // HIGHER = eyes appear MORE CLOSED at rest (more blink at neutral)
+        this.baseline = {
+            leftEyeHeight: 0.008,    // ← Lowered: eyes now appear more open at rest
+            rightEyeHeight: 0.012,   // ← Lowered: eyes now appear more open at rest
+            mouthHeight: 0.01,       // Closed mouth height
+            mouthWidth: 0.15,        // Neutral mouth width
+            faceHeight: 0.35         // Face height reference
+        };
+
+        // =====================================================
+        // SENSITIVITY MULTIPLIERS - Tweak these for responsiveness
+        // =====================================================
+        this.sensitivity = {
+            // Eye blink (1 = closed, 0 = open) - TUNE EACH EYE SEPARATELY
+            eyeBlinkLeft: 0.8,       // Left eye blink sensitivity (↓ = less droopy)
+            eyeBlinkRight: 0.8,      // Right eye blink sensitivity (↓ = less droopy)
+            eyeWideLeft: 0.5,        // Left eye wide sensitivity (↑ = opens wider)
+            eyeWideRight: 1.0,       // Right eye wide sensitivity (↑ = opens wider)
+
+            // Brows
+            browInnerUp: 25,         // Inner brow raise sensitivity (higher = more responsive)
+            browOuterUp: 25,         // Outer brow raise sensitivity
+            browDown: 20,            // Brow furrow/frown sensitivity
+
+            // Mouth
+            mouthSmile: 10,          // Smile corner elevation
+            mouthFrown: 10,          // Frown corner depression
+            mouthStretch: 3,         // Wide mouth stretch
+            mouthPucker: 3,          // Lips pushed forward
+            mouthShift: 20,          // Mouth left/right shift
+
+            // Jaw
+            jawOpen: 3,              // Jaw open multiplier (divides mouth height)
+            jawShift: 20             // Jaw left/right shift
+        };
     }
 
     /**
@@ -63,11 +101,6 @@ class BlendshapeMapper {
     calculateBlendshapes(landmarks) {
         if (!landmarks || landmarks.length < 468) {
             return this.getDefaultBlendshapes();
-        }
-
-        // Calculate baseline on first frame
-        if (!this.baseline) {
-            this.baseline = this.calculateBaseline(landmarks);
         }
 
         const blendshapes = {};
@@ -88,15 +121,16 @@ class BlendshapeMapper {
     }
 
     /**
-     * Calculate baseline measurements from neutral face
+     * Get fixed baseline values for neutral expression
+     * Adjust these if expressions seem too sensitive or not sensitive enough
      */
-    calculateBaseline(landmarks) {
+    getFixedBaseline() {
         return {
-            leftEyeHeight: this.getVerticalDistance(landmarks, 159, 145),
-            rightEyeHeight: this.getVerticalDistance(landmarks, 386, 374),
-            mouthHeight: this.getVerticalDistance(landmarks, 13, 14),
-            mouthWidth: this.getHorizontalDistance(landmarks, 61, 291),
-            faceHeight: this.getVerticalDistance(landmarks, 10, 152)
+            leftEyeHeight: 0.002,    // Eye open height (lower = eyes appear more open at rest)
+            rightEyeHeight: 0.012,
+            mouthHeight: 0.01,       // Typical closed mouth height
+            mouthWidth: 0.15,        // Typical mouth width
+            faceHeight: 0.35         // Typical face height
         };
     }
 
@@ -104,16 +138,33 @@ class BlendshapeMapper {
      * Calculate eye-related blendshapes
      */
     calculateEyeBlendshapes(landmarks) {
-        const leftEyeHeight = this.getVerticalDistance(landmarks, 159, 145);
-        const rightEyeHeight = this.getVerticalDistance(landmarks, 386, 374);
+        // Use multiple landmarks for more accurate eye height measurement
+        // Left eye: average of 3 vertical measurements for stability
+        const leftEyeHeight = this.getAverageEyeHeight(landmarks,
+            [160, 159, 158],  // Upper lid points (inner to outer)
+            [144, 145, 153]   // Lower lid points (inner to outer)
+        );
+
+        // Right eye: use symmetric landmarks
+        const rightEyeHeight = this.getAverageEyeHeight(landmarks,
+            [385, 386, 387],  // Upper lid points (inner to outer)
+            [373, 374, 380]   // Lower lid points (inner to outer)
+        );
+
+        // Ratio of current eye height to baseline
+        const leftRatio = leftEyeHeight / this.baseline.leftEyeHeight;
+        const rightRatio = rightEyeHeight / this.baseline.rightEyeHeight;
 
         // Eye blink: 1 = closed, 0 = open
-        const eyeBlinkLeft = 1 - Math.min(leftEyeHeight / this.baseline.leftEyeHeight, 1);
-        const eyeBlinkRight = 1 - Math.min(rightEyeHeight / this.baseline.rightEyeHeight, 1);
+        // When ratio < 1, eyes are more closed than baseline
+        // Each eye has its own sensitivity for fine-tuning
+        const eyeBlinkLeft = Math.max(0, (1 - leftRatio) * this.sensitivity.eyeBlinkLeft);
+        const eyeBlinkRight = Math.max(0, (1 - rightRatio) * this.sensitivity.eyeBlinkRight);
 
         // Eye wide: 1 = wide open, 0 = normal
-        const eyeWideLeft = Math.max((leftEyeHeight / this.baseline.leftEyeHeight) - 1, 0);
-        const eyeWideRight = Math.max((rightEyeHeight / this.baseline.rightEyeHeight) - 1, 0);
+        // When ratio > 1, eyes are wider than baseline
+        const eyeWideLeft = Math.max(0, (leftRatio - 1) * this.sensitivity.eyeWideLeft);
+        const eyeWideRight = Math.max(0, (rightRatio - 1) * this.sensitivity.eyeWideRight);
 
         return {
             eyeBlinkLeft: this.clamp(eyeBlinkLeft, 0, 1),
@@ -135,26 +186,38 @@ class BlendshapeMapper {
         const mouthWidth = this.getHorizontalDistance(landmarks, 61, 291);
 
         // Jaw open: 1 = fully open, 0 = closed
-        const jawOpen = Math.min(mouthHeight / (this.baseline.mouthHeight * 3), 1);
+        const jawOpen = Math.min(mouthHeight / (this.baseline.mouthHeight * this.sensitivity.jawOpen), 1);
 
         // Mouth smile: detect corner elevation
         const leftCorner = landmarks[61];
         const rightCorner = landmarks[291];
         const mouthCenter = landmarks[13];
+        const noseBottom = landmarks[2];
 
         const leftElevation = mouthCenter.y - leftCorner.y;
         const rightElevation = mouthCenter.y - rightCorner.y;
 
-        const mouthSmileLeft = this.clamp(leftElevation * 10, 0, 1);
-        const mouthSmileRight = this.clamp(rightElevation * 10, 0, 1);
+        const mouthSmileLeft = this.clamp(leftElevation * this.sensitivity.mouthSmile, 0, 1);
+        const mouthSmileRight = this.clamp(rightElevation * this.sensitivity.mouthSmile, 0, 1);
 
         // Mouth frown: opposite of smile
-        const mouthFrownLeft = this.clamp(-leftElevation * 10, 0, 1);
-        const mouthFrownRight = this.clamp(-rightElevation * 10, 0, 1);
+        const mouthFrownLeft = this.clamp(-leftElevation * this.sensitivity.mouthFrown, 0, 1);
+        const mouthFrownRight = this.clamp(-rightElevation * this.sensitivity.mouthFrown, 0, 1);
 
-        // Mouth width changes
-        const mouthStretchLeft = this.clamp((mouthWidth / this.baseline.mouthWidth) - 1, 0, 1);
+        // Mouth width changes (stretch = wide mouth)
+        const widthRatio = mouthWidth / this.baseline.mouthWidth;
+        const mouthStretchLeft = this.clamp((widthRatio - 1) * this.sensitivity.mouthStretch, 0, 1);
         const mouthStretchRight = mouthStretchLeft;
+
+        // Mouth pucker (lips pushed forward, mouth narrow)
+        const mouthPucker = this.clamp((1 - widthRatio) * this.sensitivity.mouthPucker, 0, 1);
+
+        // Mouth left/right shift
+        const mouthCenterX = (leftCorner.x + rightCorner.x) / 2;
+        const noseX = noseBottom.x;
+        const mouthShift = (mouthCenterX - noseX) * this.sensitivity.mouthShift;
+        const mouthLeft = this.clamp(-mouthShift, 0, 1);
+        const mouthRight = this.clamp(mouthShift, 0, 1);
 
         return {
             jawOpen: this.clamp(jawOpen, 0, 1),
@@ -164,9 +227,9 @@ class BlendshapeMapper {
             mouthFrownRight: mouthFrownRight,
             mouthStretchLeft: mouthStretchLeft,
             mouthStretchRight: mouthStretchRight,
-            mouthPucker: 0, // TODO: Calculate from lip distance
-            mouthLeft: 0,
-            mouthRight: 0
+            mouthPucker: mouthPucker,
+            mouthLeft: mouthLeft,
+            mouthRight: mouthRight
         };
     }
 
@@ -181,8 +244,8 @@ class BlendshapeMapper {
         const jawOffset = jawBottom.x - noseBottom.x;
 
         return {
-            jawLeft: this.clamp(-jawOffset * 20, 0, 1),
-            jawRight: this.clamp(jawOffset * 20, 0, 1),
+            jawLeft: this.clamp(-jawOffset * this.sensitivity.jawShift, 0, 1),
+            jawRight: this.clamp(jawOffset * this.sensitivity.jawShift, 0, 1),
             jawForward: 0 // TODO: Calculate from z-depth
         };
     }
@@ -195,21 +258,50 @@ class BlendshapeMapper {
         const browInnerRight = landmarks[336];
         const browOuterLeft = landmarks[70];
         const browOuterRight = landmarks[300];
-        const noseBridge = landmarks[168];
+        const noseBridge = landmarks[6];  // Use point between eyes
+        const forehead = landmarks[10];
 
-        // Calculate vertical displacement from nose bridge
-        const innerLeftUp = Math.max((noseBridge.y - browInnerLeft.y) * 5 - 0.5, 0);
-        const innerRightUp = Math.max((noseBridge.y - browInnerRight.y) * 5 - 0.5, 0);
-        const outerLeftUp = Math.max((noseBridge.y - browOuterLeft.y) * 5 - 0.5, 0);
-        const outerRightUp = Math.max((noseBridge.y - browOuterRight.y) * 5 - 0.5, 0);
+        // Calculate brow height relative to baseline
+        // Brows raised = more distance from nose bridge to brow
+        const browBaselineY = (forehead.y + noseBridge.y) / 2;
+
+        // Inner brows (for surprise, worry)
+        const innerLeftDist = browBaselineY - browInnerLeft.y;
+        const innerRightDist = browBaselineY - browInnerRight.y;
+        const innerUp = (innerLeftDist + innerRightDist) * this.sensitivity.browInnerUp;
+
+        // Outer brows
+        const outerLeftDist = browBaselineY - browOuterLeft.y;
+        const outerRightDist = browBaselineY - browOuterRight.y;
+
+        // Brow down (frown) - when brows are lower than baseline
+        const browDownLeft = Math.max((browInnerLeft.y - browBaselineY) * this.sensitivity.browDown, 0);
+        const browDownRight = Math.max((browInnerRight.y - browBaselineY) * this.sensitivity.browDown, 0);
 
         return {
-            browInnerUp: this.clamp((innerLeftUp + innerRightUp) / 2, 0, 1),
-            browOuterUpLeft: this.clamp(outerLeftUp, 0, 1),
-            browOuterUpRight: this.clamp(outerRightUp, 0, 1),
-            browDownLeft: 0,
-            browDownRight: 0
+            browInnerUp: this.clamp(innerUp, 0, 1),
+            browOuterUpLeft: this.clamp(outerLeftDist * this.sensitivity.browOuterUp, 0, 1),
+            browOuterUpRight: this.clamp(outerRightDist * this.sensitivity.browOuterUp, 0, 1),
+            browDownLeft: this.clamp(browDownLeft, 0, 1),
+            browDownRight: this.clamp(browDownRight, 0, 1)
         };
+    }
+
+    /**
+     * Get average eye height from multiple upper/lower lid landmarks
+     * This provides more stable measurements than single-point
+     */
+    getAverageEyeHeight(landmarks, upperIndices, lowerIndices) {
+        let totalHeight = 0;
+        const numPairs = Math.min(upperIndices.length, lowerIndices.length);
+
+        for (let i = 0; i < numPairs; i++) {
+            const upper = landmarks[upperIndices[i]];
+            const lower = landmarks[lowerIndices[i]];
+            totalHeight += Math.abs(upper.y - lower.y);
+        }
+
+        return totalHeight / numPairs;
     }
 
     /**
@@ -279,10 +371,10 @@ class BlendshapeMapper {
     }
 
     /**
-     * Reset baseline (useful when switching users)
+     * Reset baseline to fixed values
      */
     resetBaseline() {
-        this.baseline = null;
+        this.baseline = this.getFixedBaseline();
     }
 }
 

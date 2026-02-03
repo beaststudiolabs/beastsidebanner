@@ -33,29 +33,43 @@ class ThreeRenderer {
         // Create scene
         this.scene = new THREE.Scene();
 
-        // Set up camera (orthographic for face overlay)
+        // Set up camera (perspective for realistic depth)
         const aspect = window.innerWidth / window.innerHeight;
-        this.camera = new THREE.OrthographicCamera(
-            -1, 1,  // left, right
-            1, -1,  // top, bottom
-            0.1, 1000 // near, far
+        this.camera = new THREE.PerspectiveCamera(
+            50,      // Field of view (degrees)
+            aspect,  // Aspect ratio
+            0.1,     // Near clipping plane
+            1000     // Far clipping plane
         );
-        this.camera.position.z = 5;
+        this.camera.position.z = 3;  // Camera distance from origin
 
         // Create renderer with transparency (using performance settings)
         this.renderer = new THREE.WebGLRenderer({
             canvas: this.canvas,
             alpha: true,
-            antialias: this.perfSettings.antialiasing
+            antialias: this.perfSettings.antialiasing,
+            preserveDrawingBuffer: true  // Required for capturing canvas content
         });
         this.renderer.setSize(window.innerWidth, window.innerHeight);
         this.renderer.setPixelRatio(this.perfSettings.pixelRatio); // Use performance config
         this.renderer.setClearColor(0x000000, 0); // Transparent background
 
+        // === COLOR & TONE MAPPING (fixes desaturated colors) ===
+        this.renderer.outputColorSpace = THREE.SRGBColorSpace;  // Proper color output
+        this.renderer.toneMapping = THREE.ACESFilmicToneMapping; // Cinematic look
+        this.renderer.toneMappingExposure = 0.7;  // Brightness (1.0 = default, higher = brighter)
+
+        // === ENABLE SHADOWS ===
+        this.renderer.shadowMap.enabled = true;
+        this.renderer.shadowMap.type = THREE.PCFSoftShadowMap; // Soft shadows
+
         console.log(`ThreeRenderer: Pixel ratio set to ${this.perfSettings.pixelRatio}`);
 
         // Set up lighting
         this.setupLighting();
+
+        // Set up environment for better material rendering
+        this.setupEnvironment();
 
         // Handle window resize
         window.addEventListener('resize', this.onWindowResize.bind(this));
@@ -64,22 +78,184 @@ class ThreeRenderer {
     }
 
     /**
-     * Set up scene lighting
+     * Set up scene lighting with shadows
+     * Tweak these values to adjust the look of your character
      */
     setupLighting() {
-        // Hemisphere light (ambient)
-        const hemisphereLight = new THREE.HemisphereLight(0xffffff, 0x444444, 0.6);
+        // === LIGHTING CONFIG (tweak these!) ===
+        // All values are intensity multipliers
+        this.lightingConfig = {
+            ambient: 0.4,           // Base ambient light (prevents pure black shadows)
+            hemisphere: 0.3,        // Sky/ground gradient light
+            keyLight: 1.5,          // Main directional light (casts shadows)
+            fillLight: 0.5,         // Softens shadows from opposite side
+            rimLight: 0.4,          // Edge/back light for depth
+            faceLight: 0.4          // Front point light for face
+        };
+
+        // Ambient light (overall base illumination - no shadows)
+        const ambientLight = new THREE.AmbientLight(0xffffff, this.lightingConfig.ambient);
+        this.scene.add(ambientLight);
+
+        // Hemisphere light (sky/ground gradient - adds natural feel)
+        const hemisphereLight = new THREE.HemisphereLight(
+            0xffeedd,  // Sky color (warm white)
+            0x080820,  // Ground color (dark blue)
+            this.lightingConfig.hemisphere
+        );
         this.scene.add(hemisphereLight);
 
-        // Directional light (key light)
-        const directionalLight = new THREE.DirectionalLight(0xffffff, 0.8);
-        directionalLight.position.set(1, 1, 1);
-        this.scene.add(directionalLight);
+        // === KEY LIGHT (main light with shadows) ===
+        const keyLight = new THREE.DirectionalLight(0xffffff, this.lightingConfig.keyLight);
+        keyLight.position.set(2, 3, 4);  // Front-right, above
+        keyLight.castShadow = true;
+        // Shadow quality settings
+        keyLight.shadow.mapSize.width = 1024;
+        keyLight.shadow.mapSize.height = 1024;
+        keyLight.shadow.camera.near = 0.1;
+        keyLight.shadow.camera.far = 20;
+        keyLight.shadow.camera.left = -5;
+        keyLight.shadow.camera.right = 5;
+        keyLight.shadow.camera.top = 5;
+        keyLight.shadow.camera.bottom = -5;
+        keyLight.shadow.bias = -0.001;  // Reduces shadow acne
+        keyLight.shadow.radius = 4;     // Soft shadow edges
+        this.scene.add(keyLight);
 
-        // Point light (fill light)
-        const pointLight = new THREE.PointLight(0xffffff, 0.4);
-        pointLight.position.set(-1, 0, 2);
-        this.scene.add(pointLight);
+        // Fill light (soften shadows - from opposite side, no shadow casting)
+        const fillLight = new THREE.DirectionalLight(0xaaccff, this.lightingConfig.fillLight);
+        fillLight.position.set(-2, 1, 2);  // Front-left
+        this.scene.add(fillLight);
+
+        // Rim/back light (creates edge highlights - from behind)
+        const rimLight = new THREE.DirectionalLight(0xffffee, this.lightingConfig.rimLight);
+        rimLight.position.set(0, 2, -3);  // Behind and above
+        this.scene.add(rimLight);
+
+        // Front face light (ensures face is well-lit)
+        const faceLight = new THREE.PointLight(0xfff8f0, this.lightingConfig.faceLight, 15);
+        faceLight.position.set(0, 0, 4);  // Directly in front
+        this.scene.add(faceLight);
+
+        // Store lights for runtime adjustment
+        this.lights = {
+            ambient: ambientLight,
+            hemisphere: hemisphereLight,
+            key: keyLight,
+            fill: fillLight,
+            rim: rimLight,
+            face: faceLight
+        };
+
+        console.log('ThreeRenderer: Lighting with shadows setup complete');
+    }
+
+    /**
+     * Update a specific light's intensity
+     * @param {string} name - Light name: 'ambient', 'hemisphere', 'key', 'fill', 'rim', 'face'
+     * @param {number} intensity - New intensity value
+     */
+    updateLight(name, intensity) {
+        if (this.lights && this.lights[name]) {
+            this.lights[name].intensity = intensity;
+            this.lightingConfig[name === 'key' ? 'keyLight' : name === 'face' ? 'faceLight' : name] = intensity;
+        }
+    }
+
+    /**
+     * Update all lighting at once
+     * @param {Object} config - { ambient, hemisphere, keyLight, fillLight, rimLight, faceLight }
+     */
+    updateAllLighting(config) {
+        if (config.ambient !== undefined) this.lights.ambient.intensity = config.ambient;
+        if (config.hemisphere !== undefined) this.lights.hemisphere.intensity = config.hemisphere;
+        if (config.keyLight !== undefined) this.lights.key.intensity = config.keyLight;
+        if (config.fillLight !== undefined) this.lights.fill.intensity = config.fillLight;
+        if (config.rimLight !== undefined) this.lights.rim.intensity = config.rimLight;
+        if (config.faceLight !== undefined) this.lights.face.intensity = config.faceLight;
+        Object.assign(this.lightingConfig, config);
+        console.log('ThreeRenderer: Lighting updated', this.lightingConfig);
+    }
+
+    /**
+     * Set up environment for PBR materials
+     * Creates a simple gradient environment for reflections
+     */
+    setupEnvironment() {
+        // Create a simple procedural environment map
+        // This helps PBR materials look better without loading an HDR file
+        const pmremGenerator = new THREE.PMREMGenerator(this.renderer);
+        pmremGenerator.compileEquirectangularShader();
+
+        // Create a simple gradient scene for the environment
+        const envScene = new THREE.Scene();
+
+        // Gradient background colors (soft studio lighting feel)
+        const topColor = new THREE.Color(0xffffff);    // White/bright top
+        const bottomColor = new THREE.Color(0x888899); // Soft blue-gray bottom
+
+        // Create gradient using a large sphere with gradient material
+        const gradientMaterial = new THREE.ShaderMaterial({
+            uniforms: {
+                topColor: { value: topColor },
+                bottomColor: { value: bottomColor }
+            },
+            vertexShader: `
+                varying vec3 vWorldPosition;
+                void main() {
+                    vec4 worldPosition = modelMatrix * vec4(position, 1.0);
+                    vWorldPosition = worldPosition.xyz;
+                    gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+                }
+            `,
+            fragmentShader: `
+                uniform vec3 topColor;
+                uniform vec3 bottomColor;
+                varying vec3 vWorldPosition;
+                void main() {
+                    float h = normalize(vWorldPosition).y * 0.5 + 0.5;
+                    gl_FragColor = vec4(mix(bottomColor, topColor, h), 1.0);
+                }
+            `,
+            side: THREE.BackSide
+        });
+
+        const envSphere = new THREE.Mesh(
+            new THREE.SphereGeometry(100, 32, 32),
+            gradientMaterial
+        );
+        envScene.add(envSphere);
+
+        // Generate environment map
+        const envMap = pmremGenerator.fromScene(envScene, 0.04).texture;
+        this.scene.environment = envMap;
+
+        // Clean up
+        pmremGenerator.dispose();
+        envSphere.geometry.dispose();
+        gradientMaterial.dispose();
+
+        console.log('ThreeRenderer: Environment map created');
+    }
+
+    /**
+     * Adjust lighting at runtime
+     * @param {string} lightName - 'ambient', 'key', 'fill', 'rim', 'face'
+     * @param {number} intensity - Light intensity
+     */
+    setLightIntensity(lightName, intensity) {
+        if (this.lights[lightName]) {
+            this.lights[lightName].intensity = intensity;
+            console.log(`ThreeRenderer: ${lightName} light intensity set to ${intensity}`);
+        }
+    }
+
+    /**
+     * Set overall exposure
+     */
+    setExposure(value) {
+        this.renderer.toneMappingExposure = value;
+        console.log(`ThreeRenderer: Exposure set to ${value}`);
     }
 
     /**
@@ -127,12 +303,8 @@ class ThreeRenderer {
         const width = window.innerWidth;
         const height = window.innerHeight;
 
-        // Update camera
-        const aspect = width / height;
-        this.camera.left = -1;
-        this.camera.right = 1;
-        this.camera.top = 1;
-        this.camera.bottom = -1;
+        // Update camera aspect ratio
+        this.camera.aspect = width / height;
         this.camera.updateProjectionMatrix();
 
         // Update renderer

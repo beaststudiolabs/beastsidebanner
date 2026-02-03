@@ -89,50 +89,69 @@ class FilterApp {
     createContainerStructure() {
         this.root.innerHTML = `
             <div class="filter-container">
+                <div class="loading-overlay" id="loading-overlay">
+                    <div class="loading-content">
+                        <div class="loading-spinner"></div>
+                        <div class="loading-text">Initializing camera...</div>
+                        <div class="loading-subtext">Please allow camera access when prompted</div>
+                    </div>
+                </div>
                 <div class="video-container">
                     <video id="camera-video" autoplay playsinline></video>
                     <canvas id="filter-canvas"></canvas>
                 </div>
                 <div class="controls">
-                    <button id="close-btn" class="btn-close">Close</button>
+                    <button id="close-btn" class="btn-close" aria-label="Close filter">
+                        <i data-lucide="x"></i>
+                    </button>
                 </div>
                 <div class="capture-controls">
-                    <button id="photo-btn" class="btn-capture btn-photo" title="Take Photo">
-                        📸
+                    <button id="photo-btn" class="btn-capture btn-photo" title="Take Photo" aria-label="Take photo">
+                        <i data-lucide="camera"></i>
                     </button>
-                    <button id="video-btn" class="btn-capture btn-video" title="Record Video">
-                        🎥
+                    <button id="video-btn" class="btn-capture btn-video" title="Record Video" aria-label="Record video">
+                        <i data-lucide="video"></i>
                     </button>
-                    <button id="stop-btn" class="btn-capture btn-stop" style="display: none;" title="Stop Recording">
-                        ⏹️
+                    <button id="stop-btn" class="btn-capture btn-stop" style="display: none;" title="Stop Recording" aria-label="Stop recording">
+                        <i data-lucide="square"></i>
                     </button>
-                    <div class="recording-timer" style="display: none;">00:00</div>
+                    <div class="recording-timer" style="display: none;" aria-live="polite" aria-atomic="true">00:00</div>
                 </div>
                 <div class="debug-info">
                     <div id="fps-counter">FPS: --</div>
                     <div id="face-status">Face: Searching...</div>
                 </div>
-                <div class="character-indicator">
-                    <div class="character-dots">
-                        <span class="dot active" data-index="0"></span>
-                        <span class="dot" data-index="1"></span>
-                        <span class="dot" data-index="2"></span>
-                        <span class="dot" data-index="3"></span>
-                        <span class="dot" data-index="4"></span>
+                <div class="character-indicator" role="navigation" aria-label="Character selection">
+                    <div class="character-dots" role="tablist" aria-label="Characters">
+                        <!-- Dots generated dynamically based on available characters -->
                     </div>
-                    <div class="character-name">Boy #1</div>
-                    <div class="swipe-hint">← Swipe to switch →</div>
+                    <div class="character-name" aria-live="polite"></div>
+                    <div class="swipe-hint" aria-hidden="true">← Swipe to switch →</div>
+                </div>
+                <div class="skin-color-picker">
+                    <button class="skin-picker-toggle" title="Change Skin Color" aria-label="Change skin color" aria-expanded="false" aria-controls="skin-picker-panel">
+                        <i data-lucide="palette"></i>
+                    </button>
+                    <div id="skin-picker-panel" class="skin-picker-panel" style="display: none;" role="dialog" aria-label="Skin color picker">
+                        <div class="skin-picker-header">
+                            <span id="skin-picker-title">Skin Tone</span>
+                            <button class="skin-reset-btn" title="Reset to Original" aria-label="Reset skin color to original">
+                                <i data-lucide="undo-2"></i>
+                            </button>
+                        </div>
+                        <div class="skin-tones" role="group" aria-labelledby="skin-picker-title"></div>
+                    </div>
                 </div>
                 <div class="error-message" style="display: none;"></div>
-                <div class="preview-modal" style="display: none;">
+                <div class="preview-modal" style="display: none;" role="dialog" aria-label="Media preview" aria-modal="true">
                     <div class="preview-content">
-                        <button class="preview-close">×</button>
-                        <img class="preview-image" style="display: none;" />
-                        <video class="preview-video" style="display: none;" controls></video>
+                        <button class="preview-close" aria-label="Close preview"><i data-lucide="x"></i></button>
+                        <img class="preview-image" style="display: none;" alt="Captured photo preview" />
+                        <video class="preview-video" style="display: none;" controls autoplay loop muted aria-label="Captured video preview"></video>
                         <div class="preview-actions">
-                            <button class="btn-preview btn-download">⬇️ Download</button>
-                            <button class="btn-preview btn-share">📤 Share</button>
-                            <button class="btn-preview btn-retake">🔄 Retake</button>
+                            <button class="btn-preview btn-download" aria-label="Download media"><i data-lucide="download"></i> Download</button>
+                            <button class="btn-preview btn-share" aria-label="Share media"><i data-lucide="share-2"></i> Share</button>
+                            <button class="btn-preview btn-retake" aria-label="Close and retake"><i data-lucide="refresh-cw"></i> Retake</button>
                         </div>
                     </div>
                 </div>
@@ -145,8 +164,14 @@ class FilterApp {
         this.errorElement = this.root.querySelector('.error-message');
         this.fpsCounter = this.root.querySelector('#fps-counter');
         this.faceStatus = this.root.querySelector('#face-status');
-        this.characterDots = this.root.querySelectorAll('.character-dots .dot');
+        this.characterDotsContainer = this.root.querySelector('.character-dots');
+        this.characterDots = []; // Will be populated dynamically
         this.characterName = this.root.querySelector('.character-name');
+
+        // Loading overlay elements
+        this.loadingOverlay = this.root.querySelector('#loading-overlay');
+        this.loadingText = this.root.querySelector('.loading-text');
+        this.loadingSubtext = this.root.querySelector('.loading-subtext');
 
         // Capture controls
         this.photoBtn = this.root.querySelector('#photo-btn');
@@ -163,11 +188,29 @@ class FilterApp {
         this.shareBtn = this.root.querySelector('.btn-share');
         this.retakeBtn = this.root.querySelector('.btn-retake');
 
-        // Add click handlers to character dots
-        this.characterDots.forEach((dot, index) => {
-            dot.addEventListener('click', () => {
-                this.events.emit('characterSwitch', { index });
-            });
+        // Skin color picker elements
+        this.skinPickerToggle = this.root.querySelector('.skin-picker-toggle');
+        this.skinPickerPanel = this.root.querySelector('.skin-picker-panel');
+        this.skinTonesContainer = this.root.querySelector('.skin-tones');
+        this.skinResetBtn = this.root.querySelector('.skin-reset-btn');
+
+        // Skin picker toggle
+        this.skinPickerToggle.addEventListener('click', () => {
+            this.toggleSkinPicker();
+        });
+
+        // Skin reset button
+        this.skinResetBtn.addEventListener('click', () => {
+            this.characterManager?.resetSkinColor();
+            this.updateSkinToneSelection(null);
+        });
+
+        // Close skin picker when clicking outside
+        document.addEventListener('click', (e) => {
+            if (!e.target.closest('.skin-color-picker')) {
+                this.skinPickerPanel.style.display = 'none';
+                this.skinPickerToggle.setAttribute('aria-expanded', 'false');
+            }
         });
 
         // Add click handlers to capture buttons
@@ -180,6 +223,23 @@ class FilterApp {
         this.retakeBtn.addEventListener('click', () => this.closePreview());
         this.downloadBtn.addEventListener('click', () => this.handleDownload());
         this.shareBtn.addEventListener('click', () => this.handleShare());
+
+        // Initialize Lucide icons
+        if (window.lucide) {
+            window.lucide.createIcons();
+        }
+
+        // Debug info toggle (press 'D' key or add ?debug to URL)
+        this.debugInfo = this.root.querySelector('.debug-info');
+        if (window.location.search.includes('debug')) {
+            this.debugInfo.classList.add('visible');
+        }
+
+        document.addEventListener('keydown', (e) => {
+            if (e.key.toLowerCase() === 'd' && !e.target.matches('input, textarea')) {
+                this.debugInfo.classList.toggle('visible');
+            }
+        });
     }
 
     /**
@@ -189,16 +249,28 @@ class FilterApp {
         console.log('Initializing modules...');
 
         // 1. Camera Manager (no dependencies)
+        this.updateLoadingText('Setting up camera...', 'Please allow camera access when prompted');
         this.cameraManager = new CameraManager(this.videoElement);
 
         // 2. Three.js Renderer (needs canvas element)
+        this.updateLoadingText('Initializing 3D engine...', '');
         this.renderer = new ThreeRenderer(this.canvasElement, this.events);
 
         // 3. Character Manager (needs Three.js scene)
+        this.updateLoadingText('Loading character...', 'This may take a moment');
         this.characterManager = new CharacterManager(this.renderer.scene, this.events);
         await this.characterManager.initialize();
 
+        // Populate character selector after characters are loaded
+        this.populateCharacterDots();
+
+        // Set up thumbnail event handler immediately (before thumbnails finish generating)
+        this.events.on('thumbnailGenerated', (data) => {
+            this.updateCharacterDotThumbnail(data.index, data.thumbnail);
+        });
+
         // 4. Face Tracker (needs video element and event emitter)
+        this.updateLoadingText('Starting face tracking...', 'Almost ready!');
         this.faceTracker = new FaceTracker(this.videoElement, this.events);
 
         // 5. UI Controller (needs container element)
@@ -297,6 +369,8 @@ class FilterApp {
             console.log(`Switching from character ${data.from} to ${data.to}...`);
         });
 
+        // Note: thumbnailGenerated handler is set up earlier in initializeModules()
+
         // Media capture events
         this.events.on('photoCaptured', (photo) => {
             console.log('Photo captured');
@@ -367,11 +441,15 @@ class FilterApp {
      * Update character indicator UI
      */
     updateCharacterIndicator(activeIndex) {
+        if (!this.characterDots) return;
+
         this.characterDots.forEach((dot, index) => {
             if (index === activeIndex) {
                 dot.classList.add('active');
+                dot.setAttribute('aria-selected', 'true');
             } else {
                 dot.classList.remove('active');
+                dot.setAttribute('aria-selected', 'false');
             }
         });
     }
@@ -383,6 +461,7 @@ class FilterApp {
         console.log('Starting application...');
 
         // Start camera
+        this.updateLoadingText('Starting camera...', '');
         await this.cameraManager.start();
         this.state.cameraActive = true;
 
@@ -391,8 +470,12 @@ class FilterApp {
         this.state.renderingActive = true;
 
         // Start face tracking (after camera is ready)
+        this.updateLoadingText('Starting face tracking...', 'Look at the camera');
         await this.faceTracker.start();
         this.state.faceTracking = true;
+
+        // Hide loading overlay - we're ready!
+        this.hideLoading();
 
         console.log('Application started');
     }
@@ -422,17 +505,22 @@ class FilterApp {
         // Build error HTML
         const html = `
             <div class="error-content">
-                <div class="error-icon">⚠️</div>
+                <div class="error-icon"><i data-lucide="alert-triangle"></i></div>
                 <h3 class="error-title">${errorInfo.title}</h3>
                 <p class="error-message">${errorInfo.message}</p>
                 ${errorInfo.retryable && errorInfo.canRetry !== false ?
-                    '<button class="error-retry-btn">🔄 Retry</button>' :
-                    '<button class="error-close-btn">✕ Close</button>'}
+                    '<button class="error-retry-btn"><i data-lucide="refresh-cw"></i> Retry</button>' :
+                    '<button class="error-close-btn"><i data-lucide="x"></i> Close</button>'}
             </div>
         `;
 
         this.errorElement.innerHTML = html;
         this.errorElement.style.display = 'flex';
+
+        // Initialize Lucide icons in error message
+        if (window.lucide) {
+            window.lucide.createIcons({ attrs: { class: 'lucide-icon' } });
+        }
 
         // Add click handler for retry button
         const retryBtn = this.errorElement.querySelector('.error-retry-btn');
@@ -598,6 +686,200 @@ class FilterApp {
             await this.mediaCapture.shareVideo(this.currentPreviewMedia);
         }
         // Don't close preview automatically (user might want to share again)
+    }
+
+    /**
+     * Populate character selector dots based on available characters
+     */
+    populateCharacterDots() {
+        if (!this.characterManager || !this.characterDotsContainer) return;
+
+        const characters = this.characterManager.getAllCharacters();
+        this.characterDotsContainer.innerHTML = '';
+
+        characters.forEach((character, index) => {
+            const dot = document.createElement('button');
+            dot.className = 'dot' + (index === 0 ? ' active' : '');
+            dot.dataset.index = index;
+            dot.dataset.name = character.name;
+            dot.setAttribute('role', 'tab');
+            dot.setAttribute('aria-selected', index === 0 ? 'true' : 'false');
+            dot.setAttribute('aria-label', character.name);
+
+            // Check if thumbnail is already available
+            if (character.thumbnail) {
+                // Use thumbnail image
+                const img = document.createElement('img');
+                img.src = character.thumbnail;
+                img.alt = character.name;
+                img.draggable = false;
+                dot.appendChild(img);
+            } else {
+                // Fallback to initials until thumbnail is ready
+                const initials = this.getCharacterInitials(character.name);
+                dot.textContent = initials;
+            }
+
+            // Add click handler
+            dot.addEventListener('click', () => {
+                this.events.emit('characterSwitch', { index });
+            });
+
+            this.characterDotsContainer.appendChild(dot);
+        });
+
+        // Update reference to dots
+        this.characterDots = this.characterDotsContainer.querySelectorAll('.dot');
+
+        // Set initial character name
+        if (characters.length > 0) {
+            this.characterName.textContent = characters[0].name;
+        }
+
+        // Hide dots container if only one character
+        if (characters.length <= 1) {
+            this.characterDotsContainer.style.display = 'none';
+            this.root.querySelector('.swipe-hint').style.display = 'none';
+        }
+    }
+
+    /**
+     * Update a character dot with its thumbnail when generated
+     */
+    updateCharacterDotThumbnail(index, thumbnail) {
+        if (!this.characterDots || index >= this.characterDots.length) return;
+
+        const dot = this.characterDots[index];
+        if (dot && thumbnail) {
+            // Clear existing content (initials)
+            dot.textContent = '';
+
+            // Add thumbnail image
+            const img = document.createElement('img');
+            img.src = thumbnail;
+            img.alt = dot.dataset.name || `Character ${index + 1}`;
+            img.draggable = false;
+            dot.appendChild(img);
+        }
+    }
+
+    /**
+     * Get initials from character name
+     * e.g., "Boy #1" -> "B1", "Girl #2" -> "G2", "Character #1" -> "C1"
+     */
+    getCharacterInitials(name) {
+        // Extract first letter and any number
+        const firstLetter = name.charAt(0).toUpperCase();
+        const numberMatch = name.match(/\d+/);
+        const number = numberMatch ? numberMatch[0] : '';
+        return firstLetter + number;
+    }
+
+    /**
+     * Update loading overlay text
+     */
+    updateLoadingText(text, subtext = '') {
+        if (this.loadingText) {
+            this.loadingText.textContent = text;
+        }
+        if (this.loadingSubtext) {
+            this.loadingSubtext.textContent = subtext;
+        }
+    }
+
+    /**
+     * Hide loading overlay
+     */
+    hideLoading() {
+        if (this.loadingOverlay) {
+            this.loadingOverlay.classList.add('hidden');
+        }
+    }
+
+    /**
+     * Show loading overlay
+     */
+    showLoading(text = 'Loading...', subtext = '') {
+        if (this.loadingOverlay) {
+            this.loadingOverlay.classList.remove('hidden');
+            this.updateLoadingText(text, subtext);
+        }
+    }
+
+    /**
+     * Toggle skin color picker panel
+     */
+    toggleSkinPicker() {
+        const isVisible = this.skinPickerPanel.style.display !== 'none';
+        this.skinPickerPanel.style.display = isVisible ? 'none' : 'block';
+
+        // Update ARIA expanded state
+        this.skinPickerToggle.setAttribute('aria-expanded', !isVisible);
+
+        // Populate skin tones if not already done
+        if (!isVisible && this.skinTonesContainer.children.length === 0) {
+            this.populateSkinTones();
+        }
+    }
+
+    /**
+     * Populate skin tone swatches
+     */
+    populateSkinTones() {
+        if (!this.characterManager) return;
+
+        const skinTones = this.characterManager.getSkinTones();
+        this.skinTonesContainer.innerHTML = '';
+
+        skinTones.forEach(tone => {
+            const swatch = document.createElement('button');
+            swatch.className = 'skin-swatch';
+            swatch.style.backgroundColor = tone.color;
+            swatch.title = tone.name;
+            swatch.dataset.color = tone.color;
+
+            swatch.addEventListener('click', () => {
+                this.characterManager.setSkinColor(tone.color);
+                this.updateSkinToneSelection(tone.color);
+            });
+
+            this.skinTonesContainer.appendChild(swatch);
+        });
+
+        // Add custom color input
+        const customLabel = document.createElement('label');
+        customLabel.className = 'skin-custom';
+        customLabel.innerHTML = `
+            <input type="color" class="skin-custom-input" value="#EAC086" title="Custom Color">
+            <span class="skin-custom-icon"><i data-lucide="pipette"></i></span>
+        `;
+        this.skinTonesContainer.appendChild(customLabel);
+
+        // Handle custom color input
+        const customInput = customLabel.querySelector('.skin-custom-input');
+        customInput.addEventListener('input', (e) => {
+            this.characterManager.setSkinColor(e.target.value);
+            this.updateSkinToneSelection(e.target.value);
+        });
+
+        // Re-initialize lucide icons
+        if (window.lucide) {
+            window.lucide.createIcons();
+        }
+    }
+
+    /**
+     * Update which skin tone swatch is selected
+     */
+    updateSkinToneSelection(selectedColor) {
+        const swatches = this.skinTonesContainer.querySelectorAll('.skin-swatch');
+        swatches.forEach(swatch => {
+            if (swatch.dataset.color === selectedColor) {
+                swatch.classList.add('selected');
+            } else {
+                swatch.classList.remove('selected');
+            }
+        });
     }
 
     /**
