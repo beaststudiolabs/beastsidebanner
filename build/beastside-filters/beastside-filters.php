@@ -63,6 +63,30 @@ class Beastside_Filters {
 
         // Add admin notices
         add_action('admin_notices', array($this, 'admin_notices'));
+
+        // Modify CSP headers for Three.js compatibility
+        add_action('send_headers', array($this, 'modify_csp_headers'));
+    }
+
+    /**
+     * Modify Content Security Policy headers for Three.js
+     * Three.js requires 'unsafe-eval' for shader compilation
+     */
+    public function modify_csp_headers() {
+        global $post;
+
+        // Only modify CSP on pages with our shortcode
+        if (!is_singular() || !is_a($post, 'WP_Post')) {
+            return;
+        }
+
+        if (!has_shortcode($post->post_content, 'beastside_filters')) {
+            return;
+        }
+
+        // Add CSP header allowing unsafe-eval for Three.js
+        // This modifies existing CSP or adds a new one
+        header("Content-Security-Policy: script-src 'self' 'unsafe-inline' 'unsafe-eval' https://cdn.jsdelivr.net blob:; worker-src 'self' blob:;", false);
     }
 
     /**

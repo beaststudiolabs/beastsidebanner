@@ -16,6 +16,23 @@ class Beastside_Filters_Asset_Manager {
      */
     public function __construct() {
         add_action('wp_enqueue_scripts', array($this, 'enqueue_assets'));
+        add_action('wp_head', array($this, 'add_csp_meta_tag'), 1);
+    }
+
+    /**
+     * Add CSP meta tag for Three.js compatibility
+     * Three.js requires 'unsafe-eval' for shader compilation
+     */
+    public function add_csp_meta_tag() {
+        global $post;
+
+        // Only add on pages with our shortcode
+        if (!is_a($post, 'WP_Post') || !has_shortcode($post->post_content, 'beastside_filters')) {
+            return;
+        }
+
+        // Output CSP meta tag - allows unsafe-eval needed by Three.js
+        echo '<meta http-equiv="Content-Security-Policy" content="script-src \'self\' \'unsafe-inline\' \'unsafe-eval\' https://cdn.jsdelivr.net https://*.googleapis.com blob: data:; worker-src \'self\' blob:; connect-src \'self\' https://*.googleapis.com https://*.gstatic.com blob: data:;">' . "\n";
     }
 
     /**
