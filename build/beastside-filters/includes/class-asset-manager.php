@@ -31,8 +31,8 @@ class Beastside_Filters_Asset_Manager {
             return;
         }
 
-        // Output CSP meta tag - allows unsafe-eval needed by Three.js
-        echo '<meta http-equiv="Content-Security-Policy" content="script-src \'self\' \'unsafe-inline\' \'unsafe-eval\' https://cdn.jsdelivr.net https://*.googleapis.com blob: data:; worker-src \'self\' blob:; connect-src \'self\' https://*.googleapis.com https://*.gstatic.com blob: data:;">' . "\n";
+        // Output CSP meta tag - allows unsafe-eval needed by Three.js and connect-src for MediaPipe
+        echo '<meta http-equiv="Content-Security-Policy" content="script-src \'self\' \'unsafe-inline\' \'unsafe-eval\' https://cdn.jsdelivr.net https://*.googleapis.com blob: data:; worker-src \'self\' blob:; connect-src \'self\' https://cdn.jsdelivr.net https://*.googleapis.com https://*.gstatic.com blob: data:;">' . "\n";
     }
 
     /**
