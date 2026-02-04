@@ -3,9 +3,10 @@
  *
  * Processes video frames to detect face landmarks and calculate blendshapes.
  * Emits events with face tracking data for other modules to consume.
+ *
+ * Note: MediaPipe is loaded from CDN in index.html and adds FaceMesh to window
  */
 
-import { FaceMesh } from '@mediapipe/face_mesh';
 import BlendshapeMapper from '../utils/BlendshapeMapper.js';
 
 class FaceTracker {
@@ -36,7 +37,13 @@ class FaceTracker {
         try {
             console.log('FaceTracker: Initializing MediaPipe Face Mesh...');
 
-            this.faceMesh = new FaceMesh({
+            // Use window.FaceMesh since MediaPipe adds it to global scope
+            const FaceMeshClass = window.FaceMesh;
+            if (!FaceMeshClass) {
+                throw new Error('FaceMesh not found. MediaPipe library may not have loaded.');
+            }
+
+            this.faceMesh = new FaceMeshClass({
                 locateFile: (file) => {
                     return `https://cdn.jsdelivr.net/npm/@mediapipe/face_mesh/${file}`;
                 }
@@ -161,22 +168,28 @@ class FaceTracker {
         const rightMouth = landmarks[291];      // Right mouth corner
         const forehead = landmarks[10];         // Top of forehead
 
-        // === FACE CENTER (position) ===
-        // Use nose bridge as the center point
-        const faceCenter = {
-            x: (noseBridge.x - 0.5) * 2,      // Convert 0-1 to -1 to 1
-            y: -(noseBridge.y - 0.5) * 2,     // Invert Y and convert
-            z: noseBridge.z || 0               // Z depth
-        };
-
         // === FACE SCALE ===
         // Based on distance between eyes (more stable than single measurement)
+        // This also indicates camera distance - larger = closer to camera
         const eyeDistance = Math.sqrt(
             Math.pow(rightEyeOuter.x - leftEyeOuter.x, 2) +
             Math.pow(rightEyeOuter.y - leftEyeOuter.y, 2) +
             Math.pow((rightEyeOuter.z || 0) - (leftEyeOuter.z || 0), 2)
         );
         const scale = eyeDistance * 10;
+
+        // === FACE CENTER (position) ===
+        // Use nose bridge as the center point
+        // Z position derived from face scale (bigger face = closer to camera)
+        // Baseline ~0.2 eye distance at normal viewing distance
+        const baselineEyeDistance = 0.18;
+        const zFromScale = (eyeDistance - baselineEyeDistance) * 10; // Positive = closer
+
+        const faceCenter = {
+            x: (noseBridge.x - 0.5) * 2,      // Convert 0-1 to -1 to 1
+            y: -(noseBridge.y - 0.5) * 2,     // Invert Y and convert
+            z: zFromScale                      // Z from face scale (closer = positive)
+        };
 
         // === HEAD ROTATION ===
 

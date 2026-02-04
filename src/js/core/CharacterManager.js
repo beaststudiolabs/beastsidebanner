@@ -67,7 +67,7 @@ class CharacterManager {
         this.modelConfig = {
             // === SCALE ===
             scaleBase: 6.0,         // Base scale of the model
-            scaleMultiplier: 1.0,   // How much face size affects scale
+            scaleMultiplier: 5.0,   // How much face size affects scale
             scaleMin: 0.1,           // Minimum allowed scale
             scaleMax: 50.0,          // Maximum allowed scale (increase for bigger)
             scaleX: 1.0,             // Width scale multiplier (increase if too narrow)
@@ -78,6 +78,7 @@ class CharacterManager {
             positionScale: 1.0,      // Overall position sensitivity
             positionScaleX: 1.0,     // Horizontal movement multiplier
             positionScaleY: 1.0,     // Vertical movement multiplier
+            positionScaleZ: 5.0,     // Depth movement multiplier (forward/backward)
             positionOffsetX: 0.0,    // Horizontal offset (positive = right)
             positionOffsetY: 0.0,    // Vertical offset (positive = up)
             positionOffsetZ: -1.0,    // Depth offset (positive = forward)
@@ -89,8 +90,8 @@ class CharacterManager {
             baseRotationZ: 0,        // Base Z rotation in radians (tilt sideways on load)
             rotationScale: 1.0,      // Overall rotation sensitivity
             pitchScale: 1.0,         // Up/down head tilt multiplier
-            yawScale: 5.0,           // Left/right head turn multiplier
-            rollScale: 0.0,          // Head tilt (ear to shoulder) multiplier
+            yawScale: 8.0,          // Left/right head turn multiplier (high for full range of motion)
+            rollScale: -1.2,         // Head tilt (ear to shoulder) multiplier (negative = mirror for selfie)
             pitchOffset: 0.0,        // Pitch offset in radians
             yawOffset: 0.0,          // Yaw offset in radians
             rollOffset: 0.0,         // Roll offset in radians
@@ -627,7 +628,7 @@ class CharacterManager {
         const rawX = cfg.mirrorX ? -position.x : position.x;
         const targetX = (rawX * cfg.positionScale * cfg.positionScaleX) + cfg.positionOffsetX;
         const targetY = (position.y * cfg.positionScale * cfg.positionScaleY) + cfg.positionOffsetY;
-        const targetZ = position.z + cfg.positionOffsetZ;
+        const targetZ = (position.z * cfg.positionScale * cfg.positionScaleZ) + cfg.positionOffsetZ;
 
         // === CALCULATE TARGET ROTATION ===
         // Mirror yaw if X is mirrored

@@ -5,40 +5,29 @@ export default defineConfig({
   build: {
     outDir: 'dist',
     rollupOptions: {
-      input: {
-        main: resolve(__dirname, 'src/js/main.js'),
-      },
       output: {
-        entryFileNames: 'js/[name].js',
-        chunkFileNames: 'js/[name]-[hash].js',
-        assetFileNames: (assetInfo) => {
-          if (assetInfo.name.endsWith('.css')) {
-            return 'css/[name][extname]';
-          }
-          return 'assets/[name]-[hash][extname]';
-        },
         manualChunks: {
           // Separate vendor chunks for better caching
+          // MediaPipe is loaded from CDN, not bundled
           'three-vendor': ['three'],
-          'mediapipe-vendor': ['@mediapipe/face_mesh'],
         },
       },
     },
     minify: 'terser',
     terserOptions: {
       compress: {
-        drop_console: true, // Remove console logs in production
+        drop_console: false, // Keep console logs for debugging
         drop_debugger: true,
       },
     },
-    sourcemap: false, // Disable sourcemaps for production (reduce size)
-    chunkSizeWarningLimit: 600, // Increase limit (we have Three.js)
+    sourcemap: false,
+    chunkSizeWarningLimit: 600,
   },
   server: {
     port: 3000,
     open: true,
   },
   optimizeDeps: {
-    include: ['three', '@mediapipe/face_mesh'],
+    include: ['three'],
   },
 });
