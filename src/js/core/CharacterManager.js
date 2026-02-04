@@ -23,8 +23,8 @@ class CharacterManager {
 
         // Character configuration (paths are relative to modelsBasePath)
         this.characters = [
-            { id: 'char1', name: 'Rafsby', path: '1.glb', loaded: false, thumbnail: null },
-            { id: 'char2', name: 'Rafsby 2', path: '1.glb', loaded: false, thumbnail: null },
+            { id: 'hendrix', name: 'Hendrix', path: 'Hendrix.glb', loaded: false, thumbnail: null },
+            { id: 'rafsby', name: 'Rafsby', path: '1.glb', loaded: false, thumbnail: null },
             // Other characters commented out for now:
             // { id: 'boy1', name: 'Boy #1', path: 'boy1.glb', loaded: false },
             // { id: 'girl1', name: 'Girl #1', path: 'girl1.glb', loaded: false },
