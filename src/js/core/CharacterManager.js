@@ -107,6 +107,10 @@ class CharacterManager {
         // Smoothed blendshape values (for lerping facial expressions)
         this.smoothedBlendshapes = {};
 
+        // Hide model until first tracking frame so it doesn't flash at center
+        this.firstTrackingFrame = true;
+        this.modelVisible = false;
+
         // Skin color customization
         this.skinMaterials = [];
         this.currentSkinColor = null;
@@ -561,6 +565,12 @@ class CharacterManager {
         if (this.currentModel) {
             // Apply base rotation so model faces camera
             this.currentModel.rotation.y = this.modelConfig.baseRotationY;
+
+            // Hide until first tracking frame so it doesn't flash at center
+            this.currentModel.visible = false;
+            this.modelVisible = false;
+            this.firstTrackingFrame = true;
+
             this.scene.add(this.currentModel);
 
             // Re-find skin materials for the new character
@@ -641,19 +651,37 @@ class CharacterManager {
         const finalTargetRoll = this.applyDeadzone(this.smoothedTransform.rotation.roll, targetRoll, rotDead);
 
         // === APPLY SMOOTHING (lerp toward target values) ===
-        const posSmooth = cfg.positionSmoothing;
-        const rotSmooth = cfg.rotationSmoothing;
-        const scaleSmooth = cfg.scaleSmoothing;
+        // On first frame, snap directly to face position (no lerp from center)
+        if (this.firstTrackingFrame) {
+            this.firstTrackingFrame = false;
+            this.smoothedTransform.position.x = finalTargetX;
+            this.smoothedTransform.position.y = finalTargetY;
+            this.smoothedTransform.position.z = finalTargetZ;
+            this.smoothedTransform.rotation.pitch = finalTargetPitch;
+            this.smoothedTransform.rotation.yaw = finalTargetYaw;
+            this.smoothedTransform.rotation.roll = finalTargetRoll;
+            this.smoothedTransform.scale = targetScaleVal;
 
-        this.smoothedTransform.position.x = this.lerp(this.smoothedTransform.position.x, finalTargetX, posSmooth);
-        this.smoothedTransform.position.y = this.lerp(this.smoothedTransform.position.y, finalTargetY, posSmooth);
-        this.smoothedTransform.position.z = this.lerp(this.smoothedTransform.position.z, finalTargetZ, posSmooth);
+            // Now show the model — it's at the correct face position
+            if (this.currentModel && !this.modelVisible) {
+                this.currentModel.visible = true;
+                this.modelVisible = true;
+            }
+        } else {
+            const posSmooth = cfg.positionSmoothing;
+            const rotSmooth = cfg.rotationSmoothing;
+            const scaleSmooth = cfg.scaleSmoothing;
 
-        this.smoothedTransform.rotation.pitch = this.lerp(this.smoothedTransform.rotation.pitch, finalTargetPitch, rotSmooth);
-        this.smoothedTransform.rotation.yaw = this.lerp(this.smoothedTransform.rotation.yaw, finalTargetYaw, rotSmooth);
-        this.smoothedTransform.rotation.roll = this.lerp(this.smoothedTransform.rotation.roll, finalTargetRoll, rotSmooth);
+            this.smoothedTransform.position.x = this.lerp(this.smoothedTransform.position.x, finalTargetX, posSmooth);
+            this.smoothedTransform.position.y = this.lerp(this.smoothedTransform.position.y, finalTargetY, posSmooth);
+            this.smoothedTransform.position.z = this.lerp(this.smoothedTransform.position.z, finalTargetZ, posSmooth);
 
-        this.smoothedTransform.scale = this.lerp(this.smoothedTransform.scale, targetScaleVal, scaleSmooth);
+            this.smoothedTransform.rotation.pitch = this.lerp(this.smoothedTransform.rotation.pitch, finalTargetPitch, rotSmooth);
+            this.smoothedTransform.rotation.yaw = this.lerp(this.smoothedTransform.rotation.yaw, finalTargetYaw, rotSmooth);
+            this.smoothedTransform.rotation.roll = this.lerp(this.smoothedTransform.rotation.roll, finalTargetRoll, rotSmooth);
+
+            this.smoothedTransform.scale = this.lerp(this.smoothedTransform.scale, targetScaleVal, scaleSmooth);
+        }
 
         // === APPLY POSITION ===
         this.currentModel.position.set(
