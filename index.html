@@ -3,17 +3,31 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>BEASTSIDE Filters - Test</title>
+    <title>BEASTSIDE Filters</title>
     <meta name="description" content="BEASTSIDE face filters - Experience BEASTSIDE characters in real-time">
+
+    <!-- PWA -->
+    <link rel="manifest" href="/manifest.json">
+    <meta name="theme-color" content="#000000">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <meta name="apple-mobile-web-app-title" content="BEASTSIDE">
+    <link rel="apple-touch-icon" href="/icons/apple-touch-icon.png">
+
     <!-- Lucide Icons -->
     <script src="https://unpkg.com/lucide@latest"></script>
+    <!-- DotLottie Player for animations -->
+    <script src="https://unpkg.com/@dotlottie/player-component@2.7.12/dist/dotlottie-player.mjs" type="module"></script>
     <!-- MediaPipe Face Mesh (loaded from CDN for better compatibility) -->
     <script src="https://cdn.jsdelivr.net/npm/@mediapipe/face_mesh/face_mesh.js" crossorigin="anonymous"></script>
+    <!-- MediaPipe Selfie Segmentation for virtual backgrounds -->
+    <script src="https://cdn.jsdelivr.net/npm/@mediapipe/selfie_segmentation/selfie_segmentation.js" crossorigin="anonymous"></script>
     <style>
         body {
             margin: 0;
             padding: 0;
             overflow: hidden;
+            background-color: #000000;
         }
     </style>
 </head>

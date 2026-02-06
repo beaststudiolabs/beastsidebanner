@@ -25,79 +25,155 @@ class ErrorHandler {
             UNKNOWN: 'unknown'
         };
 
-        // Error messages
+        // Error messages with icons, suggestions, and help links
         this.ERROR_MESSAGES = {
             [this.ERROR_TYPES.CAMERA_PERMISSION]: {
                 title: 'Camera Access Required',
                 message: 'Please enable camera access in your browser settings to use BEASTSIDE Filters.',
+                icon: 'camera-off',
                 action: 'Open Settings',
-                retryable: false
+                retryable: false,
+                suggestions: [
+                    'Check your browser\'s address bar for a camera icon',
+                    'Go to browser settings and enable camera for this site',
+                    'On iOS, check Settings > Safari > Camera'
+                ],
+                helpUrl: 'https://support.google.com/chrome/answer/2693767'
             },
             [this.ERROR_TYPES.CAMERA_IN_USE]: {
                 title: 'Camera In Use',
-                message: 'Your camera is being used by another application. Please close other apps and try again.',
+                message: 'Your camera is being used by another application.',
+                icon: 'video-off',
                 action: 'Retry',
-                retryable: true
+                retryable: true,
+                suggestions: [
+                    'Close other apps that might be using the camera',
+                    'Close other browser tabs with video calls',
+                    'Restart your browser if the issue persists'
+                ]
             },
             [this.ERROR_TYPES.CAMERA_NOT_FOUND]: {
                 title: 'No Camera Found',
-                message: 'No camera detected on your device. Please connect a camera and try again.',
+                message: 'No camera detected on your device.',
+                icon: 'camera',
                 action: 'Retry',
-                retryable: true
+                retryable: true,
+                suggestions: [
+                    'Make sure your device has a camera',
+                    'Check if your camera is properly connected',
+                    'Try refreshing the page'
+                ]
             },
             [this.ERROR_TYPES.BROWSER_UNSUPPORTED]: {
                 title: 'Browser Not Supported',
-                message: 'Your browser doesn\'t support this feature. Please use the latest Chrome, Safari, or Firefox.',
+                message: 'Your browser doesn\'t support the required features.',
+                icon: 'globe',
                 action: 'Learn More',
-                retryable: false
+                retryable: false,
+                suggestions: [
+                    'Update to the latest version of Chrome, Safari, or Firefox',
+                    'Try using a different browser',
+                    'Enable JavaScript if it\'s disabled'
+                ],
+                helpUrl: 'https://www.whatismybrowser.com/'
             },
             [this.ERROR_TYPES.WEBGL_UNSUPPORTED]: {
                 title: 'WebGL Not Available',
-                message: '3D graphics are not supported on your device or browser. Please try a different browser.',
+                message: '3D graphics are not supported on your device or browser.',
+                icon: 'box',
                 action: 'Learn More',
-                retryable: false
+                retryable: false,
+                suggestions: [
+                    'Update your graphics drivers',
+                    'Try a different browser',
+                    'Disable hardware acceleration and re-enable it'
+                ],
+                helpUrl: 'https://get.webgl.org/'
             },
             [this.ERROR_TYPES.FACE_TRACKING_FAILED]: {
                 title: 'Face Tracking Failed',
-                message: 'Unable to track your face. Make sure your face is visible and well-lit.',
+                message: 'Unable to track your face.',
+                icon: 'scan-face',
                 action: 'Retry',
-                retryable: true
+                retryable: true,
+                suggestions: [
+                    'Make sure your face is clearly visible',
+                    'Improve lighting in your environment',
+                    'Position yourself directly in front of the camera',
+                    'Remove sunglasses or items covering your face'
+                ]
             },
             [this.ERROR_TYPES.MODEL_LOAD_FAILED]: {
                 title: 'Character Load Failed',
-                message: 'Failed to load character model. Please check your connection and try again.',
+                message: 'Failed to load the character model.',
+                icon: 'user-x',
                 action: 'Retry',
-                retryable: true
+                retryable: true,
+                suggestions: [
+                    'Check your internet connection',
+                    'Try refreshing the page',
+                    'Clear your browser cache'
+                ]
             },
             [this.ERROR_TYPES.CAPTURE_FAILED]: {
                 title: 'Capture Failed',
-                message: 'Failed to capture photo/video. Please try again.',
+                message: 'Failed to capture photo or video.',
+                icon: 'image-off',
                 action: 'Retry',
-                retryable: true
+                retryable: true,
+                suggestions: [
+                    'Wait a moment and try again',
+                    'Make sure the camera is working properly',
+                    'Try a shorter video recording'
+                ]
             },
             [this.ERROR_TYPES.NETWORK_ERROR]: {
                 title: 'Connection Error',
-                message: 'Unable to connect to the server. Please check your internet connection.',
+                message: 'Unable to connect to the server.',
+                icon: 'wifi-off',
                 action: 'Retry',
-                retryable: true
+                retryable: true,
+                suggestions: [
+                    'Check your internet connection',
+                    'Try refreshing the page',
+                    'Disable VPN if you\'re using one'
+                ]
             },
             [this.ERROR_TYPES.STORAGE_FULL]: {
                 title: 'Storage Full',
-                message: 'Your device storage is full. Please free up space and try again.',
+                message: 'Your device storage is full.',
+                icon: 'hard-drive',
                 action: 'OK',
-                retryable: false
+                retryable: false,
+                suggestions: [
+                    'Free up space by deleting unused files',
+                    'Clear your browser cache',
+                    'Move files to cloud storage'
+                ]
             },
             [this.ERROR_TYPES.PERFORMANCE_CRITICAL]: {
                 title: 'Low Performance',
-                message: 'Performance is too low for smooth operation. Try closing other apps or using a more powerful device.',
+                message: 'Performance is too low for smooth operation.',
+                icon: 'gauge',
                 action: 'Continue Anyway',
-                retryable: false
+                retryable: false,
+                suggestions: [
+                    'Close other browser tabs and applications',
+                    'Disable browser extensions',
+                    'Try using a more powerful device'
+                ]
             },
             [this.ERROR_TYPES.UNKNOWN]: {
                 title: 'Something Went Wrong',
-                message: 'An unexpected error occurred. Please try again.',
+                message: 'An unexpected error occurred.',
+                icon: 'alert-circle',
                 action: 'Retry',
-                retryable: true
+                retryable: true,
+                suggestions: [
+                    'Try refreshing the page',
+                    'Clear your browser cache',
+                    'Try using a different browser'
+                ]
             }
         };
 

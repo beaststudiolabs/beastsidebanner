@@ -11,6 +11,7 @@ class CameraManager {
         this.videoElement = videoElement;
         this.stream = null;
         this.isActive = false;
+        this.facingMode = 'user'; // 'user' = front camera, 'environment' = back camera
 
         // Get performance settings
         this.perfSettings = performanceConfig.getSettings();
@@ -18,17 +19,21 @@ class CameraManager {
 
     /**
      * Start camera and attach stream to video element
+     * @param {string} facingMode - 'user' for front camera, 'environment' for back camera
      */
-    async start() {
+    async start(facingMode = this.facingMode) {
         try {
-            console.log('CameraManager: Requesting camera access...');
+            console.log(`CameraManager: Requesting camera access (${facingMode})...`);
+
+            // Store current facing mode
+            this.facingMode = facingMode;
 
             // Request camera with optimal constraints for face tracking
             // Use performance settings for resolution
             const { width, height } = this.perfSettings.videoResolution;
             const constraints = {
                 video: {
-                    facingMode: 'user', // Front camera
+                    facingMode: facingMode,
                     width: { ideal: width },
                     height: { ideal: height },
                     frameRate: { ideal: 30, max: 60 }
@@ -51,6 +56,8 @@ class CameraManager {
 
             // Log actual video dimensions
             console.log(`Video dimensions: ${this.videoElement.videoWidth}x${this.videoElement.videoHeight}`);
+
+            return { facingMode: this.facingMode };
         } catch (error) {
             console.error('CameraManager: Failed to start camera', error);
             throw error;
@@ -131,6 +138,44 @@ class CameraManager {
             width: this.videoElement.videoWidth,
             height: this.videoElement.videoHeight
         };
+    }
+
+    /**
+     * Flip between front and back camera
+     * @returns {Promise<{facingMode: string}>} New facing mode
+     */
+    async flipCamera() {
+        const newFacingMode = this.facingMode === 'user' ? 'environment' : 'user';
+        console.log(`CameraManager: Flipping camera to ${newFacingMode}`);
+
+        // Stop current stream
+        this.stop();
+
+        // Start with new facing mode
+        return await this.start(newFacingMode);
+    }
+
+    /**
+     * Get current facing mode
+     * @returns {string} Current facing mode ('user' or 'environment')
+     */
+    getFacingMode() {
+        return this.facingMode;
+    }
+
+    /**
+     * Check if device has multiple cameras
+     * @returns {Promise<boolean>}
+     */
+    async hasMultipleCameras() {
+        try {
+            const devices = await navigator.mediaDevices.enumerateDevices();
+            const videoInputs = devices.filter(device => device.kind === 'videoinput');
+            return videoInputs.length > 1;
+        } catch (error) {
+            console.warn('CameraManager: Could not enumerate devices', error);
+            return false;
+        }
     }
 }
 

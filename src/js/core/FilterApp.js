@@ -1,5 +1,6 @@
 /**
  * FilterApp - Main Application Orchestrator
+ * Updated: Feb 5, 2026
  *
  * Coordinates all modules and manages application lifecycle.
  * This is the most critical file - it initializes modules in dependency order
@@ -10,11 +11,13 @@ import CameraManager from './CameraManager.js';
 import ThreeRenderer from './ThreeRenderer.js';
 import FaceTracker from './FaceTracker.js';
 import CharacterManager from './CharacterManager.js';
+import SegmentationManager from './SegmentationManager.js';
 import UIController from './UIController.js';
 import MediaCapture from './MediaCapture.js';
 import EventEmitter from '../utils/EventEmitter.js';
 import ErrorHandler from '../utils/ErrorHandler.js';
 import PerformanceMonitor from '../utils/PerformanceMonitor.js';
+import SoundManager from '../utils/SoundManager.js';
 
 class FilterApp {
     constructor(rootElement) {
@@ -35,15 +38,17 @@ class FilterApp {
         // Event emitter for module communication
         this.events = new EventEmitter();
 
-        // Error handling and performance monitoring
+        // Error handling, performance monitoring, and sound
         this.errorHandler = new ErrorHandler(this.events);
         this.performanceMonitor = new PerformanceMonitor(this.events);
+        this.soundManager = new SoundManager();
 
         // Module instances (will be initialized in init())
         this.cameraManager = null;
         this.renderer = null;
         this.faceTracker = null;
         this.characterManager = null;
+        this.segmentationManager = null;
         this.uiController = null;
         this.mediaCapture = null;
     }
@@ -72,6 +77,9 @@ class FilterApp {
             // Start the application
             await this.start();
 
+            // Initialize sound manager
+            await this.soundManager.initialize();
+
             // Start performance monitoring
             this.performanceMonitor.start();
 
@@ -91,67 +99,131 @@ class FilterApp {
             <div class="filter-container">
                 <div class="loading-overlay" id="loading-overlay">
                     <div class="loading-content">
-                        <div class="loading-spinner"></div>
+                        <dotlottie-player
+                            src="https://assets-v2.lottiefiles.com/a/a9900a38-111d-11ef-9a11-2763059a69de/ItnWBz23D6.lottie"
+                            background="transparent"
+                            speed="1"
+                            style="width: 80px; height: 80px; filter: invert(1); margin: 0 auto;"
+                            loop
+                            autoplay>
+                        </dotlottie-player>
                         <div class="loading-text">Initializing camera...</div>
-                        <div class="loading-subtext">Please allow camera access when prompted</div>
+                        <div class="loading-progress">
+                            <div class="loading-progress-bar" id="loading-progress-bar"></div>
+                        </div>
                     </div>
                 </div>
                 <div class="video-container">
+                    <canvas id="background-canvas"></canvas>
                     <video id="camera-video" autoplay playsinline></video>
                     <canvas id="filter-canvas"></canvas>
                 </div>
-                <div class="controls">
-                    <button id="close-btn" class="btn-close" aria-label="Close filter">
-                        <i data-lucide="x"></i>
+
+                <!-- Top Controls -->
+                <div class="top-controls">
+                    <button id="effects-btn" class="top-btn" aria-label="Toggle effects" aria-expanded="false">
+                        <i data-lucide="sparkles"></i>
+                    </button>
+                    <button id="settings-btn" class="top-btn" aria-label="Open settings">
+                        <i data-lucide="sliders-horizontal"></i>
                     </button>
                 </div>
-                <div class="capture-controls">
-                    <button id="photo-btn" class="btn-capture btn-photo" title="Take Photo" aria-label="Take photo">
+
+                <!-- Effects Dropdown -->
+                <div class="effects-dropdown" id="effects-dropdown">
+                    <div class="effects-section">
+                        <div class="effects-section-title">Virtual Background</div>
+                        <div class="effects-grid" id="virtual-backgrounds-list"></div>
+                    </div>
+                    <div class="effects-section">
+                        <div class="effects-section-title">Effects</div>
+                        <div class="effects-grid" id="background-effects-list"></div>
+                    </div>
+                    <div class="effects-section">
+                        <div class="effects-section-title">Filter</div>
+                        <div class="effects-grid" id="photo-filters-list"></div>
+                    </div>
+                </div>
+
+                <!-- Settings Dropdown -->
+                <div class="effects-dropdown" id="settings-dropdown" style="left: auto; right: calc(20px + env(safe-area-inset-right, 0px));">
+                    <div class="effects-section">
+                        <div class="effects-section-title">Options</div>
+                        <div class="effects-grid">
+                            <button id="fullscreen-btn" class="effect-item" title="Fullscreen" aria-label="Toggle fullscreen">
+                                <i data-lucide="maximize"></i>
+                            </button>
+                            <button id="mute-btn" class="effect-item" title="Sound" aria-label="Toggle sound">
+                                <i data-lucide="volume-2"></i>
+                            </button>
+                            <button id="timer-toggle-btn" class="effect-item" title="Timer" aria-label="Toggle countdown timer">
+                                <i data-lucide="timer"></i>
+                            </button>
+                            <button id="close-btn" class="effect-item" title="Close" aria-label="Close filter">
+                                <i data-lucide="x"></i>
+                            </button>
+                        </div>
+                    </div>
+                    <div class="effects-section">
+                        <div class="effects-section-title">Skin Tone</div>
+                        <div class="effects-grid" id="skin-tones-grid"></div>
+                    </div>
+                </div>
+
+                <!-- Character Selector (above island) -->
+                <div class="character-selector" id="character-selector">
+                    <div class="character-selector-name" id="character-name">RAFSBY</div>
+                    <div class="character-selector-dot"></div>
+                </div>
+
+                <!-- Recording Indicator -->
+                <div class="recording-indicator" id="recording-indicator">
+                    <div class="recording-dot"></div>
+                    <div class="recording-time" id="recording-time">00:00</div>
+                </div>
+
+                <!-- Bottom Island Control Bar -->
+                <div class="bottom-island">
+                    <button class="island-thumbnail" id="thumbnail-btn" aria-label="View last capture">
+                        <i data-lucide="image"></i>
+                    </button>
+                    <button class="capture-btn" id="capture-btn" aria-label="Take photo or start recording"></button>
+                    <button class="island-mode" id="mode-btn" aria-label="Toggle photo/video mode">
                         <i data-lucide="camera"></i>
                     </button>
-                    <button id="video-btn" class="btn-capture btn-video" title="Record Video" aria-label="Record video">
-                        <i data-lucide="video"></i>
-                    </button>
-                    <button id="stop-btn" class="btn-capture btn-stop" style="display: none;" title="Stop Recording" aria-label="Stop recording">
-                        <i data-lucide="square"></i>
-                    </button>
-                    <div class="recording-timer" style="display: none;" aria-live="polite" aria-atomic="true">00:00</div>
                 </div>
+
+                <!-- Character Picker Dropdown -->
+                <div class="character-picker" id="character-picker">
+                    <div class="character-picker-title">Characters</div>
+                    <div class="character-dots" role="tablist" aria-label="Characters"></div>
+                    <div class="character-name" aria-live="polite"></div>
+                </div>
+
+                <!-- Countdown Overlay -->
+                <div class="countdown-overlay" id="countdown-overlay">
+                    <div class="countdown-number" id="countdown-number">3</div>
+                </div>
+
+                <!-- Debug Info -->
                 <div class="debug-info">
                     <div id="fps-counter">FPS: --</div>
                     <div id="face-status">Face: Searching...</div>
                 </div>
-                <div class="character-indicator" role="navigation" aria-label="Character selection">
-                    <div class="character-dots" role="tablist" aria-label="Characters">
-                        <!-- Dots generated dynamically based on available characters -->
-                    </div>
-                    <div class="character-name" aria-live="polite"></div>
-                    <div class="swipe-hint" aria-hidden="true">← Swipe to switch →</div>
-                </div>
-                <div class="skin-color-picker">
-                    <button class="skin-picker-toggle" title="Change Skin Color" aria-label="Change skin color" aria-expanded="false" aria-controls="skin-picker-panel">
-                        <i data-lucide="palette"></i>
-                    </button>
-                    <div id="skin-picker-panel" class="skin-picker-panel" style="display: none;" role="dialog" aria-label="Skin color picker">
-                        <div class="skin-picker-header">
-                            <span id="skin-picker-title">Skin Tone</span>
-                            <button class="skin-reset-btn" title="Reset to Original" aria-label="Reset skin color to original">
-                                <i data-lucide="undo-2"></i>
-                            </button>
-                        </div>
-                        <div class="skin-tones" role="group" aria-labelledby="skin-picker-title"></div>
-                    </div>
-                </div>
+
+                <!-- Error Message -->
                 <div class="error-message" style="display: none;"></div>
-                <div class="preview-modal" style="display: none;" role="dialog" aria-label="Media preview" aria-modal="true">
+
+                <!-- Preview Modal -->
+                <div class="preview-modal" role="dialog" aria-label="Media preview" aria-modal="true">
                     <div class="preview-content">
                         <button class="preview-close" aria-label="Close preview"><i data-lucide="x"></i></button>
                         <img class="preview-image" style="display: none;" alt="Captured photo preview" />
-                        <video class="preview-video" style="display: none;" controls autoplay loop muted aria-label="Captured video preview"></video>
+                        <video class="preview-video" style="display: none;" autoplay loop muted playsinline aria-label="Captured video preview"></video>
                         <div class="preview-actions">
-                            <button class="btn-preview btn-download" aria-label="Download media"><i data-lucide="download"></i> Download</button>
-                            <button class="btn-preview btn-share" aria-label="Share media"><i data-lucide="share-2"></i> Share</button>
-                            <button class="btn-preview btn-retake" aria-label="Close and retake"><i data-lucide="refresh-cw"></i> Retake</button>
+                            <button class="btn-preview btn-download" title="Save to device" aria-label="Download media"><i data-lucide="download"></i></button>
+                            <button class="btn-preview btn-share" title="Share" aria-label="Share media"><i data-lucide="share-2"></i></button>
+                            <button class="btn-preview btn-retake" title="Retake" aria-label="Close and retake"><i data-lucide="refresh-cw"></i></button>
                         </div>
                     </div>
                 </div>
@@ -161,6 +233,8 @@ class FilterApp {
         // Store references to key elements
         this.videoElement = this.root.querySelector('#camera-video');
         this.canvasElement = this.root.querySelector('#filter-canvas');
+        this.backgroundCanvas = this.root.querySelector('#background-canvas');
+        this.backgroundCtx = this.backgroundCanvas.getContext('2d');
         this.errorElement = this.root.querySelector('.error-message');
         this.fpsCounter = this.root.querySelector('#fps-counter');
         this.faceStatus = this.root.querySelector('#face-status');
@@ -171,13 +245,20 @@ class FilterApp {
         // Loading overlay elements
         this.loadingOverlay = this.root.querySelector('#loading-overlay');
         this.loadingText = this.root.querySelector('.loading-text');
-        this.loadingSubtext = this.root.querySelector('.loading-subtext');
+        this.loadingProgressBar = this.root.querySelector('#loading-progress-bar');
 
-        // Capture controls
-        this.photoBtn = this.root.querySelector('#photo-btn');
-        this.videoBtn = this.root.querySelector('#video-btn');
-        this.stopBtn = this.root.querySelector('#stop-btn');
-        this.recordingTimer = this.root.querySelector('.recording-timer');
+        // New UI elements
+        this.captureBtn = this.root.querySelector('#capture-btn');
+        this.thumbnailBtn = this.root.querySelector('#thumbnail-btn');
+        this.modeBtn = this.root.querySelector('#mode-btn');
+        this.effectsBtn = this.root.querySelector('#effects-btn');
+        this.settingsBtn = this.root.querySelector('#settings-btn');
+        this.effectsDropdown = this.root.querySelector('#effects-dropdown');
+        this.settingsDropdown = this.root.querySelector('#settings-dropdown');
+        this.characterSelector = this.root.querySelector('#character-selector');
+        this.characterSelectorName = this.root.querySelector('#character-name');
+        this.recordingIndicator = this.root.querySelector('#recording-indicator');
+        this.recordingTime = this.root.querySelector('#recording-time');
 
         // Preview modal
         this.previewModal = this.root.querySelector('.preview-modal');
@@ -188,41 +269,109 @@ class FilterApp {
         this.shareBtn = this.root.querySelector('.btn-share');
         this.retakeBtn = this.root.querySelector('.btn-retake');
 
-        // Skin color picker elements
-        this.skinPickerToggle = this.root.querySelector('.skin-picker-toggle');
-        this.skinPickerPanel = this.root.querySelector('.skin-picker-panel');
-        this.skinTonesContainer = this.root.querySelector('.skin-tones');
-        this.skinResetBtn = this.root.querySelector('.skin-reset-btn');
+        // Utility controls
+        this.fullscreenBtn = this.root.querySelector('#fullscreen-btn');
+        this.muteBtn = this.root.querySelector('#mute-btn');
+        this.timerToggleBtn = this.root.querySelector('#timer-toggle-btn');
+        this.closeBtn = this.root.querySelector('#close-btn');
 
-        // Skin picker toggle
-        this.skinPickerToggle.addEventListener('click', () => {
-            this.toggleSkinPicker();
-        });
+        // Effects lists
+        this.virtualBackgroundsList = this.root.querySelector('#virtual-backgrounds-list');
+        this.backgroundEffectsList = this.root.querySelector('#background-effects-list');
+        this.photoFiltersList = this.root.querySelector('#photo-filters-list');
+        this.skinTonesGrid = this.root.querySelector('#skin-tones-grid');
 
-        // Skin reset button
-        this.skinResetBtn.addEventListener('click', () => {
-            this.characterManager?.resetSkinColor();
-            this.updateSkinToneSelection(null);
-        });
+        // Countdown overlay
+        this.countdownOverlay = this.root.querySelector('#countdown-overlay');
+        this.countdownNumber = this.root.querySelector('#countdown-number');
 
-        // Close skin picker when clicking outside
-        document.addEventListener('click', (e) => {
-            if (!e.target.closest('.skin-color-picker')) {
-                this.skinPickerPanel.style.display = 'none';
-                this.skinPickerToggle.setAttribute('aria-expanded', 'false');
+        // State
+        this.currentMode = 'photo'; // 'photo' or 'video'
+        this.useCountdown = false;
+        this.lastCapture = null;
+
+        // Main capture button
+        this.captureBtn.addEventListener('click', () => this.handleCapture());
+
+        // Thumbnail button - open last capture or preview
+        this.thumbnailBtn.addEventListener('click', () => {
+            if (this.lastCapture) {
+                this.showPreview(this.lastCapture.type, this.lastCapture.media);
             }
         });
 
-        // Add click handlers to capture buttons
-        this.photoBtn.addEventListener('click', () => this.handlePhotoCapture());
-        this.videoBtn.addEventListener('click', () => this.handleVideoStart());
-        this.stopBtn.addEventListener('click', () => this.handleVideoStop());
+        // Character picker
+        this.characterPicker = this.root.querySelector('#character-picker');
+
+        // Character selector - toggle character picker
+        this.characterSelector.addEventListener('click', (e) => {
+            e.stopPropagation();
+            this.toggleCharacterPicker();
+        });
+
+        // Close character picker when clicking outside
+        document.addEventListener('click', (e) => {
+            if (!e.target.closest('#character-picker') && !e.target.closest('#character-selector')) {
+                this.characterPicker?.classList.remove('visible');
+            }
+        });
+
+        // Mode button - toggle between photo/video
+        this.modeBtn.addEventListener('click', () => {
+            const newMode = this.currentMode === 'photo' ? 'video' : 'photo';
+            this.setMode(newMode);
+        });
+
+        // Effects button toggle
+        this.effectsBtn.addEventListener('click', (e) => {
+            e.stopPropagation();
+            this.toggleDropdown('effects');
+        });
+
+        // Settings button toggle
+        this.settingsBtn.addEventListener('click', (e) => {
+            e.stopPropagation();
+            this.toggleDropdown('settings');
+        });
+
+        // Close dropdowns when clicking outside
+        document.addEventListener('click', (e) => {
+            if (!e.target.closest('.effects-dropdown') && !e.target.closest('.top-btn')) {
+                this.closeAllDropdowns();
+            }
+        });
 
         // Add click handlers to preview modal
         this.previewClose.addEventListener('click', () => this.closePreview());
         this.retakeBtn.addEventListener('click', () => this.closePreview());
         this.downloadBtn.addEventListener('click', () => this.handleDownload());
         this.shareBtn.addEventListener('click', () => this.handleShare());
+
+        // Utility controls
+        this.fullscreenBtn.addEventListener('click', () => this.toggleFullscreen());
+        this.muteBtn.addEventListener('click', () => this.toggleMute());
+        this.timerToggleBtn.addEventListener('click', () => this.toggleCountdownTimer());
+        this.closeBtn.addEventListener('click', () => {
+            // Close/exit the filter experience
+            this.destroy();
+            this.root.innerHTML = '';
+        });
+
+        // Listen for fullscreen changes
+        document.addEventListener('fullscreenchange', () => this.updateFullscreenIcon());
+        document.addEventListener('webkitfullscreenchange', () => this.updateFullscreenIcon());
+
+        // Resume audio context on any user interaction (required for mobile browsers)
+        const resumeAudio = () => {
+            if (this.soundManager) {
+                this.soundManager.resumeContext();
+            }
+        };
+        document.addEventListener('click', resumeAudio, { once: true });
+        document.addEventListener('touchstart', resumeAudio, { once: true });
+
+        // Set up keyboard shortcuts
+        this.setupKeyboardShortcuts();
 
         // Initialize Lucide icons
         if (window.lucide) {
@@ -248,18 +397,24 @@ class FilterApp {
     async initializeModules() {
         console.log('Initializing modules...');
 
-        // 1. Camera Manager (no dependencies)
-        this.updateLoadingText('Setting up camera...', 'Please allow camera access when prompted');
+        // 1. Camera Manager (no dependencies) - 0-20%
+        this.updateLoadingText('Setting up camera...');
+        this.updateLoadingProgress(5);
         this.cameraManager = new CameraManager(this.videoElement);
+        this.updateLoadingProgress(20);
 
-        // 2. Three.js Renderer (needs canvas element)
-        this.updateLoadingText('Initializing 3D engine...', '');
+        // 2. Three.js Renderer (needs canvas element) - 20-40%
+        this.updateLoadingText('Initializing 3D engine...');
+        this.updateLoadingProgress(25);
         this.renderer = new ThreeRenderer(this.canvasElement, this.events);
+        this.updateLoadingProgress(40);
 
-        // 3. Character Manager (needs Three.js scene)
-        this.updateLoadingText('Loading character...', 'This may take a moment');
+        // 3. Character Manager (needs Three.js scene) - 40-80%
+        this.updateLoadingText('Loading character...');
+        this.updateLoadingProgress(45);
         this.characterManager = new CharacterManager(this.renderer.scene, this.events);
         await this.characterManager.initialize();
+        this.updateLoadingProgress(80);
 
         // Populate character selector after characters are loaded
         this.populateCharacterDots();
@@ -269,17 +424,26 @@ class FilterApp {
             this.updateCharacterDotThumbnail(data.index, data.thumbnail);
         });
 
-        // 4. Face Tracker (needs video element and event emitter)
-        this.updateLoadingText('Starting face tracking...', 'Almost ready!');
+        // 4. Face Tracker (needs video element and event emitter) - 80-90%
+        this.updateLoadingText('Starting face tracking...');
+        this.updateLoadingProgress(85);
         this.faceTracker = new FaceTracker(this.videoElement, this.events);
 
         // 5. UI Controller (needs container element)
         this.uiController = new UIController(this.root, this.events);
         this.uiController.initialize();
+        this.updateLoadingProgress(90);
 
         // 6. Media Capture (needs canvas and video elements)
         this.mediaCapture = new MediaCapture(this.canvasElement, this.videoElement, this.events);
         await this.mediaCapture.initialize();
+        this.updateLoadingProgress(92);
+
+        // 7. Segmentation Manager (for virtual backgrounds)
+        this.segmentationManager = new SegmentationManager(this.videoElement, this.events);
+        await this.segmentationManager.initialize();
+        this.mediaCapture.setSegmentationManager(this.segmentationManager);
+        this.updateLoadingProgress(95);
 
         // Wire up events
         this.setupEventHandlers();
@@ -358,7 +522,12 @@ class FilterApp {
             this.state.currentCharacter = data.index;
             this.updateCharacterIndicator(data.index);
 
-            // Update character name display
+            // Update character name in selector (above island)
+            if (this.characterSelectorName) {
+                this.characterSelectorName.textContent = data.character.name;
+            }
+
+            // Update character name in picker dropdown
             if (this.characterName) {
                 this.characterName.textContent = data.character.name;
             }
@@ -374,6 +543,7 @@ class FilterApp {
         // Media capture events
         this.events.on('photoCaptured', (photo) => {
             console.log('Photo captured');
+            this.soundManager.play('shutter');
             this.showPreview('photo', photo);
         });
 
@@ -430,6 +600,22 @@ class FilterApp {
             console.warn(`High memory usage: ${data.usedMB}MB / ${data.limitMB}MB (${data.percentage}%)`);
         });
 
+        // Virtual background changed
+        this.events.on('backgroundChanged', (data) => {
+            console.log('Background changed:', data);
+            if (data.enabled) {
+                // Start live background rendering
+                this.startVirtualBackgroundRender();
+                this.videoElement.style.opacity = '0';
+                this.backgroundCanvas.style.display = 'block';
+            } else {
+                // Stop live background rendering
+                this.stopVirtualBackgroundRender();
+                this.videoElement.style.opacity = '1';
+                this.backgroundCanvas.style.display = 'none';
+            }
+        });
+
         // Error event (centralized)
         this.events.on('error', (data) => {
             console.error('Application error:', data);
@@ -461,18 +647,26 @@ class FilterApp {
         console.log('Starting application...');
 
         // Start camera
-        this.updateLoadingText('Starting camera...', '');
+        this.updateLoadingText('Starting camera...');
+        this.updateLoadingProgress(96);
         await this.cameraManager.start();
         this.state.cameraActive = true;
+        this.updateLoadingProgress(97);
 
         // Start renderer
         this.renderer.start();
         this.state.renderingActive = true;
+        this.updateLoadingProgress(98);
 
         // Start face tracking (after camera is ready)
-        this.updateLoadingText('Starting face tracking...', 'Look at the camera');
+        this.updateLoadingText('Starting face tracking...');
         await this.faceTracker.start();
         this.state.faceTracking = true;
+        this.updateLoadingProgress(99);
+
+        // Segmentation will be started on-demand when virtual background is enabled
+        // (we don't call start() here - the render loop will drive processCurrentFrame)
+        this.updateLoadingProgress(100);
 
         // Hide loading overlay - we're ready!
         this.hideLoading();
@@ -502,15 +696,42 @@ class FilterApp {
     showError(errorInfo) {
         if (!this.errorElement) return;
 
+        // Build suggestions HTML
+        let suggestionsHtml = '';
+        if (errorInfo.suggestions && errorInfo.suggestions.length > 0) {
+            suggestionsHtml = `
+                <ul class="error-suggestions">
+                    ${errorInfo.suggestions.map(s => `<li>${s}</li>`).join('')}
+                </ul>
+            `;
+        }
+
+        // Build help link HTML
+        let helpLinkHtml = '';
+        if (errorInfo.helpUrl) {
+            helpLinkHtml = `
+                <a href="${errorInfo.helpUrl}" target="_blank" rel="noopener noreferrer" class="error-help-link">
+                    <i data-lucide="external-link"></i> Learn more
+                </a>
+            `;
+        }
+
+        // Use specific icon or fallback to alert-triangle
+        const iconName = errorInfo.icon || 'alert-triangle';
+
         // Build error HTML
         const html = `
             <div class="error-content">
-                <div class="error-icon"><i data-lucide="alert-triangle"></i></div>
+                <div class="error-icon"><i data-lucide="${iconName}"></i></div>
                 <h3 class="error-title">${errorInfo.title}</h3>
-                <p class="error-message">${errorInfo.message}</p>
-                ${errorInfo.retryable && errorInfo.canRetry !== false ?
-                    '<button class="error-retry-btn"><i data-lucide="refresh-cw"></i> Retry</button>' :
-                    '<button class="error-close-btn"><i data-lucide="x"></i> Close</button>'}
+                <p class="error-description">${errorInfo.message}</p>
+                ${suggestionsHtml}
+                <div class="error-actions">
+                    ${errorInfo.retryable && errorInfo.canRetry !== false ?
+                        '<button class="error-retry-btn"><i data-lucide="refresh-cw"></i> Retry</button>' :
+                        '<button class="error-close-btn"><i data-lucide="x"></i> Close</button>'}
+                    ${helpLinkHtml}
+                </div>
             </div>
         `;
 
@@ -563,14 +784,21 @@ class FilterApp {
 
     /**
      * Handle photo capture
+     * @param {boolean} useCountdown - Whether to use countdown before capture
      */
-    handlePhotoCapture() {
+    handlePhotoCapture(useCountdown = false) {
         if (this.state.isRecording) {
             console.warn('Cannot take photo while recording');
             return;
         }
 
-        this.mediaCapture.capturePhoto();
+        if (useCountdown) {
+            this.startCountdown(() => {
+                this.mediaCapture.capturePhoto();
+            });
+        } else {
+            this.mediaCapture.capturePhoto();
+        }
     }
 
     /**
@@ -591,21 +819,19 @@ class FilterApp {
     }
 
     /**
-     * Update recording UI (buttons, timer)
+     * Update recording UI (capture button, indicator)
      */
     updateRecordingUI(isRecording) {
-        if (isRecording) {
-            this.videoBtn.style.display = 'none';
-            this.stopBtn.style.display = 'block';
-            this.recordingTimer.style.display = 'block';
-            this.photoBtn.disabled = true;
-            this.photoBtn.style.opacity = '0.5';
-        } else {
-            this.videoBtn.style.display = 'block';
-            this.stopBtn.style.display = 'none';
-            this.recordingTimer.style.display = 'none';
-            this.photoBtn.disabled = false;
-            this.photoBtn.style.opacity = '1';
+        // Update capture button state
+        this.captureBtn.classList.toggle('recording', isRecording);
+
+        // Show/hide recording indicator
+        this.recordingIndicator.classList.toggle('visible', isRecording);
+
+        // Disable mode switching while recording
+        if (this.modeBtn) {
+            this.modeBtn.disabled = isRecording;
+            this.modeBtn.style.opacity = isRecording ? '0.5' : '1';
         }
     }
 
@@ -618,7 +844,7 @@ class FilterApp {
             const seconds = Math.floor(duration / 1000);
             const minutes = Math.floor(seconds / 60);
             const secs = seconds % 60;
-            this.recordingTimer.textContent = `${String(minutes).padStart(2, '0')}:${String(secs).padStart(2, '0')}`;
+            this.recordingTime.textContent = `${String(minutes).padStart(2, '0')}:${String(secs).padStart(2, '0')}`;
         }, 100);
     }
 
@@ -630,7 +856,7 @@ class FilterApp {
             clearInterval(this.recordingTimerInterval);
             this.recordingTimerInterval = null;
         }
-        this.recordingTimer.textContent = '00:00';
+        this.recordingTime.textContent = '00:00';
     }
 
     /**
@@ -639,6 +865,17 @@ class FilterApp {
     showPreview(type, media) {
         this.currentPreviewType = type;
         this.currentPreviewMedia = media;
+
+        // Save as last capture for thumbnail
+        this.lastCapture = { type, media };
+
+        // Update thumbnail button with preview
+        if (type === 'photo' && media.url) {
+            this.thumbnailBtn.innerHTML = `<img src="${media.url}" alt="Last capture" />`;
+        } else if (type === 'video' && media.url) {
+            // Generate video thumbnail from first frame
+            this.generateVideoThumbnail(media.url);
+        }
 
         if (type === 'photo') {
             this.previewImage.src = media.url;
@@ -651,6 +888,41 @@ class FilterApp {
         }
 
         this.previewModal.style.display = 'flex';
+    }
+
+    /**
+     * Generate thumbnail from video first frame
+     */
+    generateVideoThumbnail(videoUrl) {
+        const tempVideo = document.createElement('video');
+        tempVideo.src = videoUrl;
+        tempVideo.muted = true;
+        tempVideo.playsInline = true;
+
+        tempVideo.addEventListener('loadeddata', () => {
+            // Seek to first frame
+            tempVideo.currentTime = 0.1;
+        });
+
+        tempVideo.addEventListener('seeked', () => {
+            // Create thumbnail
+            const canvas = document.createElement('canvas');
+            canvas.width = 100;
+            canvas.height = 100;
+            const ctx = canvas.getContext('2d');
+
+            // Calculate crop for square thumbnail
+            const size = Math.min(tempVideo.videoWidth, tempVideo.videoHeight);
+            const offsetX = (tempVideo.videoWidth - size) / 2;
+            const offsetY = (tempVideo.videoHeight - size) / 2;
+
+            ctx.drawImage(tempVideo, offsetX, offsetY, size, size, 0, 0, 100, 100);
+
+            // Update thumbnail button
+            this.thumbnailBtn.innerHTML = `<img src="${canvas.toDataURL('image/jpeg', 0.8)}" alt="Last capture" />`;
+        });
+
+        tempVideo.load();
     }
 
     /**
@@ -680,12 +952,44 @@ class FilterApp {
      * Handle share from preview
      */
     async handleShare() {
+        let result;
         if (this.currentPreviewType === 'photo') {
-            await this.mediaCapture.sharePhoto(this.currentPreviewMedia);
+            result = await this.mediaCapture.sharePhoto(this.currentPreviewMedia);
         } else {
-            await this.mediaCapture.shareVideo(this.currentPreviewMedia);
+            result = await this.mediaCapture.shareVideo(this.currentPreviewMedia);
+        }
+
+        // Show feedback based on share method
+        if (result.success) {
+            if (result.method === 'clipboard') {
+                this.showShareFeedback('Copied to clipboard!');
+            } else if (result.method === 'download') {
+                this.showShareFeedback('Downloaded!');
+            }
+            // Native share shows its own UI, no feedback needed
         }
         // Don't close preview automatically (user might want to share again)
+    }
+
+    /**
+     * Show share feedback toast
+     */
+    showShareFeedback(message) {
+        // Create or reuse toast element
+        let toast = this.root.querySelector('.share-toast');
+        if (!toast) {
+            toast = document.createElement('div');
+            toast.className = 'share-toast';
+            this.previewModal.querySelector('.preview-content').appendChild(toast);
+        }
+
+        toast.textContent = message;
+        toast.classList.add('visible');
+
+        // Hide after 2 seconds
+        setTimeout(() => {
+            toast.classList.remove('visible');
+        }, 2000);
     }
 
     /**
@@ -731,15 +1035,20 @@ class FilterApp {
         // Update reference to dots
         this.characterDots = this.characterDotsContainer.querySelectorAll('.dot');
 
-        // Set initial character name
+        // Set initial character name in both selector and picker
         if (characters.length > 0) {
-            this.characterName.textContent = characters[0].name;
+            if (this.characterSelectorName) {
+                this.characterSelectorName.textContent = characters[0].name;
+            }
+            if (this.characterName) {
+                this.characterName.textContent = characters[0].name;
+            }
         }
 
-        // Hide dots container if only one character
-        if (characters.length <= 1) {
-            this.characterDotsContainer.style.display = 'none';
-            this.root.querySelector('.swipe-hint').style.display = 'none';
+        // If only one character, don't allow clicking to open picker
+        if (characters.length <= 1 && this.characterSelector) {
+            this.characterSelector.style.cursor = 'default';
+            this.characterSelector.removeAttribute('title');
         }
     }
 
@@ -778,12 +1087,19 @@ class FilterApp {
     /**
      * Update loading overlay text
      */
-    updateLoadingText(text, subtext = '') {
+    updateLoadingText(text) {
         if (this.loadingText) {
             this.loadingText.textContent = text;
         }
-        if (this.loadingSubtext) {
-            this.loadingSubtext.textContent = subtext;
+    }
+
+    /**
+     * Update loading progress bar
+     * @param {number} percent - Progress percentage (0-100)
+     */
+    updateLoadingProgress(percent) {
+        if (this.loadingProgressBar) {
+            this.loadingProgressBar.style.width = `${percent}%`;
         }
     }
 
@@ -797,44 +1113,200 @@ class FilterApp {
     }
 
     /**
+     * Start virtual background live rendering
+     */
+    startVirtualBackgroundRender() {
+        if (this.virtualBgRenderLoop) return;
+
+        const render = () => {
+            if (!this.segmentationManager || !this.segmentationManager.isEnabled()) {
+                this.virtualBgRenderLoop = requestAnimationFrame(render);
+                return;
+            }
+
+            // Size canvas to match video
+            const width = this.videoElement.videoWidth || 640;
+            const height = this.videoElement.videoHeight || 480;
+
+            if (this.backgroundCanvas.width !== width || this.backgroundCanvas.height !== height) {
+                this.backgroundCanvas.width = width;
+                this.backgroundCanvas.height = height;
+            }
+
+            // Trigger segmentation processing (async, don't wait)
+            this.segmentationManager.processCurrentFrame();
+
+            // Clear canvas
+            this.backgroundCtx.clearRect(0, 0, width, height);
+
+            // Composite person over background (compositeFrame handles mirroring internally)
+            const composited = this.segmentationManager.compositeFrame(
+                this.backgroundCtx,
+                this.videoElement,
+                width,
+                height
+            );
+
+            if (!composited) {
+                // Fallback to regular video mirrored (e.g., while waiting for first mask)
+                this.backgroundCtx.save();
+                this.backgroundCtx.translate(width, 0);
+                this.backgroundCtx.scale(-1, 1);
+                this.backgroundCtx.drawImage(this.videoElement, 0, 0, width, height);
+                this.backgroundCtx.restore();
+            }
+
+            this.virtualBgRenderLoop = requestAnimationFrame(render);
+        };
+
+        this.virtualBgRenderLoop = requestAnimationFrame(render);
+    }
+
+    /**
+     * Stop virtual background live rendering
+     */
+    stopVirtualBackgroundRender() {
+        if (this.virtualBgRenderLoop) {
+            cancelAnimationFrame(this.virtualBgRenderLoop);
+            this.virtualBgRenderLoop = null;
+        }
+    }
+
+    /**
      * Show loading overlay
      */
-    showLoading(text = 'Loading...', subtext = '') {
+    showLoading(text = 'Loading...') {
         if (this.loadingOverlay) {
             this.loadingOverlay.classList.remove('hidden');
-            this.updateLoadingText(text, subtext);
+            this.updateLoadingText(text);
         }
     }
 
     /**
-     * Toggle skin color picker panel
+     * Update which skin tone swatch is selected
      */
-    toggleSkinPicker() {
-        const isVisible = this.skinPickerPanel.style.display !== 'none';
-        this.skinPickerPanel.style.display = isVisible ? 'none' : 'block';
+    updateSkinToneSelection(selectedColor) {
+        const swatches = this.skinTonesGrid.querySelectorAll('.effect-item');
+        swatches.forEach(swatch => {
+            if (swatch.dataset.color === selectedColor) {
+                swatch.classList.add('active');
+            } else {
+                swatch.classList.remove('active');
+            }
+        });
+    }
 
-        // Update ARIA expanded state
-        this.skinPickerToggle.setAttribute('aria-expanded', !isVisible);
-
-        // Populate skin tones if not already done
-        if (!isVisible && this.skinTonesContainer.children.length === 0) {
-            this.populateSkinTones();
+    /**
+     * Handle main capture button press
+     */
+    handleCapture() {
+        if (this.currentMode === 'photo') {
+            this.handlePhotoCapture(this.useCountdown);
+        } else {
+            // Video mode - toggle recording
+            if (this.state.isRecording) {
+                this.handleVideoStop();
+            } else {
+                this.handleVideoStart();
+            }
         }
     }
 
     /**
-     * Populate skin tone swatches
+     * Set capture mode (photo/video)
      */
-    populateSkinTones() {
+    setMode(mode) {
+        this.currentMode = mode;
+
+        // Update mode button icon to show CURRENT mode
+        if (this.modeBtn) {
+            const iconName = mode === 'photo' ? 'camera' : 'video';
+            // Replace the entire icon (Lucide converts <i> to <svg>)
+            this.modeBtn.innerHTML = `<i data-lucide="${iconName}"></i>`;
+            if (window.lucide) {
+                window.lucide.createIcons();
+            }
+            this.modeBtn.setAttribute('aria-label', mode === 'photo' ? 'Photo mode' : 'Video mode');
+        }
+
+        // Update capture button appearance
+        this.captureBtn.classList.toggle('video-mode', mode === 'video');
+    }
+
+    /**
+     * Toggle dropdown (effects or settings)
+     */
+    toggleDropdown(type) {
+        const dropdown = type === 'effects' ? this.effectsDropdown : this.settingsDropdown;
+        const btn = type === 'effects' ? this.effectsBtn : this.settingsBtn;
+        const otherDropdown = type === 'effects' ? this.settingsDropdown : this.effectsDropdown;
+        const otherBtn = type === 'effects' ? this.settingsBtn : this.effectsBtn;
+
+        // Close other dropdown
+        otherDropdown.classList.remove('visible');
+        otherBtn.setAttribute('aria-expanded', 'false');
+
+        // Toggle this dropdown
+        const isVisible = dropdown.classList.toggle('visible');
+        btn.setAttribute('aria-expanded', isVisible);
+
+        // Populate effects if opening for first time
+        if (isVisible && type === 'effects' && this.backgroundEffectsList.children.length === 0) {
+            this.populateEffects();
+        }
+
+        // Populate skin tones if opening settings
+        if (isVisible && type === 'settings' && this.skinTonesGrid.children.length === 0) {
+            this.populateSkinTonesGrid();
+        }
+    }
+
+    /**
+     * Close all dropdowns
+     */
+    closeAllDropdowns() {
+        this.effectsDropdown.classList.remove('visible');
+        this.settingsDropdown.classList.remove('visible');
+        this.effectsBtn.setAttribute('aria-expanded', 'false');
+        this.settingsBtn.setAttribute('aria-expanded', 'false');
+    }
+
+    /**
+     * Toggle countdown timer for photo capture
+     */
+    toggleCountdownTimer() {
+        this.useCountdown = !this.useCountdown;
+        this.timerToggleBtn.classList.toggle('active', this.useCountdown);
+    }
+
+    /**
+     * Toggle character picker dropdown
+     */
+    toggleCharacterPicker() {
+        const isVisible = this.characterPicker.classList.toggle('visible');
+
+        // Close other dropdowns
+        this.closeAllDropdowns();
+
+        // Populate character dots if needed
+        if (isVisible && this.characterDotsContainer.children.length === 0) {
+            this.populateCharacterDots();
+        }
+    }
+
+    /**
+     * Populate skin tones grid in settings dropdown
+     */
+    populateSkinTonesGrid() {
         if (!this.characterManager) return;
 
         const skinTones = this.characterManager.getSkinTones();
-        this.skinTonesContainer.innerHTML = '';
+        this.skinTonesGrid.innerHTML = '';
 
         skinTones.forEach(tone => {
             const swatch = document.createElement('button');
-            swatch.className = 'skin-swatch';
-            swatch.style.backgroundColor = tone.color;
+            swatch.className = 'effect-item';
+            swatch.style.background = tone.color;
             swatch.title = tone.name;
             swatch.dataset.color = tone.color;
 
@@ -843,43 +1315,368 @@ class FilterApp {
                 this.updateSkinToneSelection(tone.color);
             });
 
-            this.skinTonesContainer.appendChild(swatch);
+            this.skinTonesGrid.appendChild(swatch);
+        });
+    }
+
+    /**
+     * Set up keyboard shortcuts
+     */
+    setupKeyboardShortcuts() {
+        document.addEventListener('keydown', (e) => {
+            // Ignore if typing in input
+            if (e.target.matches('input, textarea')) return;
+
+            // Ignore if modal is open
+            if (this.previewModal.style.display === 'flex') {
+                // Escape to close preview
+                if (e.key === 'Escape') {
+                    this.closePreview();
+                }
+                // S to share
+                if (e.key.toLowerCase() === 's') {
+                    this.handleShare();
+                }
+                // D to download
+                if (e.key.toLowerCase() === 'd') {
+                    this.handleDownload();
+                }
+                return;
+            }
+
+            switch (e.key) {
+                case ' ': // Spacebar - capture
+                    e.preventDefault();
+                    this.handleCapture();
+                    break;
+                case 'p': // P - photo mode
+                    this.setMode('photo');
+                    break;
+                case 'v': // V - video mode
+                    this.setMode('video');
+                    break;
+                case 't': // T - toggle timer
+                    this.toggleCountdownTimer();
+                    break;
+                case 'f': // F - fullscreen
+                    this.toggleFullscreen();
+                    break;
+                case 'm': // M - mute/unmute
+                    this.toggleMute();
+                    break;
+                case 'e': // E - effects panel
+                    this.toggleDropdown('effects');
+                    break;
+                case 'Escape': // Escape - close dropdowns
+                    this.closeAllDropdowns();
+                    break;
+            }
+        });
+    }
+
+    /**
+     * Toggle fullscreen mode
+     */
+    async toggleFullscreen() {
+        const container = this.root.querySelector('.filter-container');
+
+        try {
+            if (!document.fullscreenElement && !document.webkitFullscreenElement) {
+                // Enter fullscreen
+                if (container.requestFullscreen) {
+                    await container.requestFullscreen();
+                } else if (container.webkitRequestFullscreen) {
+                    await container.webkitRequestFullscreen();
+                }
+            } else {
+                // Exit fullscreen
+                if (document.exitFullscreen) {
+                    await document.exitFullscreen();
+                } else if (document.webkitExitFullscreen) {
+                    await document.webkitExitFullscreen();
+                }
+            }
+        } catch (error) {
+            console.error('Fullscreen error:', error);
+        }
+    }
+
+    /**
+     * Update fullscreen button icon
+     */
+    updateFullscreenIcon() {
+        const isFullscreen = document.fullscreenElement || document.webkitFullscreenElement;
+        const icon = this.fullscreenBtn.querySelector('i');
+
+        if (icon) {
+            icon.setAttribute('data-lucide', isFullscreen ? 'minimize' : 'maximize');
+            // Re-render the icon
+            if (window.lucide) {
+                window.lucide.createIcons();
+            }
+        }
+
+        this.fullscreenBtn.setAttribute('aria-label', isFullscreen ? 'Exit fullscreen' : 'Enter fullscreen');
+    }
+
+
+    /**
+     * Populate effects and filters lists
+     */
+    populateEffects() {
+        if (!this.mediaCapture) return;
+
+        // Populate virtual backgrounds
+        if (this.segmentationManager && this.virtualBackgroundsList) {
+            const backgrounds = this.segmentationManager.getBackgrounds();
+            this.virtualBackgroundsList.innerHTML = '';
+
+            backgrounds.forEach(bg => {
+                const btn = document.createElement('button');
+                btn.className = 'effect-item' + (bg.id === 'none' ? ' active' : '');
+                btn.dataset.backgroundId = bg.id;
+                btn.title = bg.name;
+
+                if (bg.thumbnail || (bg.src && bg.type !== 'video')) {
+                    // Show thumbnail preview (use generated thumbnail for videos, src for images)
+                    const thumbSrc = bg.thumbnail || bg.src;
+                    btn.innerHTML = `<img src="${thumbSrc}" alt="${bg.name}" style="width: 100%; height: 100%; object-fit: cover; border-radius: 8px;" />`;
+                } else {
+                    btn.innerHTML = `<i data-lucide="${bg.icon}"></i>`;
+                }
+
+                btn.addEventListener('click', () => {
+                    this.selectVirtualBackground(bg.id);
+                });
+
+                this.virtualBackgroundsList.appendChild(btn);
+            });
+        }
+
+        // Populate background effects
+        const bgEffects = this.mediaCapture.getBackgroundEffects();
+        const effects = bgEffects.getEffects();
+
+        this.backgroundEffectsList.innerHTML = '';
+        effects.forEach(effect => {
+            const btn = document.createElement('button');
+            btn.className = 'effect-item' + (effect.id === 'none' ? ' active' : '');
+            btn.dataset.effectId = effect.id;
+            btn.title = effect.name;
+            btn.innerHTML = `<i data-lucide="${effect.icon}"></i>`;
+
+            btn.addEventListener('click', () => {
+                this.selectBackgroundEffect(effect.id);
+            });
+
+            this.backgroundEffectsList.appendChild(btn);
         });
 
-        // Add custom color input
-        const customLabel = document.createElement('label');
-        customLabel.className = 'skin-custom';
-        customLabel.innerHTML = `
-            <input type="color" class="skin-custom-input" value="#EAC086" title="Custom Color">
-            <span class="skin-custom-icon"><i data-lucide="pipette"></i></span>
-        `;
-        this.skinTonesContainer.appendChild(customLabel);
+        // Populate photo filters
+        const photoFilters = this.mediaCapture.getPhotoFilters();
+        const filters = photoFilters.getFilters();
 
-        // Handle custom color input
-        const customInput = customLabel.querySelector('.skin-custom-input');
-        customInput.addEventListener('input', (e) => {
-            this.characterManager.setSkinColor(e.target.value);
-            this.updateSkinToneSelection(e.target.value);
+        this.photoFiltersList.innerHTML = '';
+        filters.forEach(filter => {
+            const btn = document.createElement('button');
+            btn.className = 'effect-item' + (filter.id === 'none' ? ' active' : '');
+            btn.dataset.filterId = filter.id;
+            btn.title = filter.name;
+            btn.innerHTML = `<i data-lucide="${filter.icon}"></i>`;
+
+            btn.addEventListener('click', () => {
+                this.selectPhotoFilter(filter.id);
+            });
+
+            this.photoFiltersList.appendChild(btn);
         });
 
-        // Re-initialize lucide icons
+        // Re-initialize Lucide icons
         if (window.lucide) {
             window.lucide.createIcons();
         }
     }
 
     /**
-     * Update which skin tone swatch is selected
+     * Select a virtual background
      */
-    updateSkinToneSelection(selectedColor) {
-        const swatches = this.skinTonesContainer.querySelectorAll('.skin-swatch');
-        swatches.forEach(swatch => {
-            if (swatch.dataset.color === selectedColor) {
-                swatch.classList.add('selected');
-            } else {
-                swatch.classList.remove('selected');
-            }
+    selectVirtualBackground(backgroundId) {
+        if (!this.segmentationManager) return;
+
+        this.segmentationManager.setBackground(backgroundId);
+
+        // Update UI buttons
+        const buttons = this.virtualBackgroundsList.querySelectorAll('.effect-item');
+        buttons.forEach(btn => {
+            btn.classList.toggle('active', btn.dataset.backgroundId === backgroundId);
         });
+
+        // If selecting a virtual background, disable other background effects
+        if (backgroundId !== 'none') {
+            this.selectBackgroundEffect('none');
+        }
+    }
+
+    /**
+     * Select a background effect
+     */
+    selectBackgroundEffect(effectId) {
+        this.mediaCapture.setBackgroundEffect(effectId);
+
+        // Update UI buttons
+        const buttons = this.backgroundEffectsList.querySelectorAll('.effect-item');
+        buttons.forEach(btn => {
+            btn.classList.toggle('active', btn.dataset.effectId === effectId);
+        });
+
+        // Apply to live video feed
+        this.applyLiveBackgroundEffect(effectId);
+
+        // If selecting a background effect, disable virtual background
+        if (effectId !== 'none' && this.segmentationManager) {
+            this.selectVirtualBackground('none');
+        }
+    }
+
+    /**
+     * Select a photo filter
+     */
+    selectPhotoFilter(filterId) {
+        this.mediaCapture.setPhotoFilter(filterId);
+
+        // Update UI buttons
+        const buttons = this.photoFiltersList.querySelectorAll('.effect-item');
+        buttons.forEach(btn => {
+            btn.classList.toggle('active', btn.dataset.filterId === filterId);
+        });
+
+        // Apply to live video feed
+        this.applyLivePhotoFilter(filterId);
+    }
+
+    /**
+     * Apply background effect to live video feed
+     */
+    applyLiveBackgroundEffect(effectId) {
+        // Get or create overlay element for effects like vignette
+        let overlay = this.root.querySelector('.live-effect-overlay');
+        if (!overlay) {
+            overlay = document.createElement('div');
+            overlay.className = 'live-effect-overlay';
+            this.root.querySelector('.video-container').appendChild(overlay);
+        }
+
+        // Reset overlay
+        overlay.style.background = 'none';
+        overlay.style.backdropFilter = 'none';
+
+        // Apply blur to video element
+        if (effectId === 'blur') {
+            this.videoElement.style.filter = 'blur(8px)';
+        } else {
+            // Reset video filter (photo filter may override this)
+            const currentPhotoFilter = this.mediaCapture.getPhotoFilters().getFilter();
+            this.applyLivePhotoFilter(currentPhotoFilter);
+        }
+
+        // Apply overlay effects
+        switch (effectId) {
+            case 'warmTint':
+                overlay.style.background = 'rgba(255, 200, 150, 0.15)';
+                break;
+            case 'coolTint':
+                overlay.style.background = 'rgba(150, 200, 255, 0.15)';
+                break;
+            case 'vignette':
+                overlay.style.background = 'radial-gradient(circle, transparent 30%, rgba(0,0,0,0.5) 100%)';
+                break;
+            case 'dramatic':
+                overlay.style.background = 'radial-gradient(circle, transparent 20%, rgba(0,0,0,0.6) 100%)';
+                break;
+        }
+    }
+
+    /**
+     * Apply photo filter to live video feed
+     */
+    applyLivePhotoFilter(filterId) {
+        const filterStrings = {
+            none: 'none',
+            vintage: 'sepia(0.3) contrast(1.1) brightness(0.95)',
+            bw: 'grayscale(1) contrast(1.2)',
+            highContrast: 'contrast(1.4) saturate(1.2)',
+            warm: 'sepia(0.1) saturate(1.2) brightness(1.05)',
+            cool: 'saturate(0.9) brightness(1.05) hue-rotate(10deg)',
+            fade: 'contrast(0.9) brightness(1.1) saturate(0.8)',
+            drama: 'contrast(1.3) brightness(0.95) saturate(1.1)'
+        };
+
+        // Check if blur effect is active
+        const currentBgEffect = this.mediaCapture.getBackgroundEffects().getEffect();
+        if (currentBgEffect === 'blur') {
+            // Combine blur with photo filter
+            this.videoElement.style.filter = `blur(8px) ${filterStrings[filterId] || 'none'}`;
+        } else {
+            this.videoElement.style.filter = filterStrings[filterId] || 'none';
+        }
+    }
+
+    /**
+     * Start countdown before capture
+     * @param {Function} callback - Function to call after countdown
+     * @param {number} seconds - Countdown duration (default: 3)
+     */
+    startCountdown(callback, seconds = 3) {
+        if (this.countdownActive) return;
+
+        this.countdownActive = true;
+        this.countdownOverlay.style.display = 'flex';
+        let count = seconds;
+
+        const tick = () => {
+            if (count <= 0) {
+                this.countdownOverlay.style.display = 'none';
+                this.countdownActive = false;
+                callback();
+                return;
+            }
+
+            this.countdownNumber.textContent = count;
+            this.countdownNumber.classList.remove('pulse');
+            // Trigger reflow to restart animation
+            void this.countdownNumber.offsetWidth;
+            this.countdownNumber.classList.add('pulse');
+
+            // Play countdown beep
+            this.soundManager.play('countdown');
+
+            count--;
+            setTimeout(tick, 1000);
+        };
+
+        tick();
+    }
+
+    /**
+     * Toggle sound mute
+     */
+    toggleMute() {
+        const isMuted = this.soundManager.toggleMute();
+        this.updateMuteIcon(isMuted);
+    }
+
+    /**
+     * Update mute button icon
+     */
+    updateMuteIcon(isMuted) {
+        const icon = this.muteBtn.querySelector('i');
+        if (icon) {
+            icon.setAttribute('data-lucide', isMuted ? 'volume-x' : 'volume-2');
+            if (window.lucide) {
+                window.lucide.createIcons();
+            }
+        }
+        this.muteBtn.setAttribute('aria-label', isMuted ? 'Enable sound effects' : 'Disable sound effects');
     }
 
     /**
@@ -889,6 +1686,11 @@ class FilterApp {
         // Stop performance monitoring
         if (this.performanceMonitor) {
             this.performanceMonitor.stop();
+        }
+
+        // Dispose sound manager
+        if (this.soundManager) {
+            this.soundManager.dispose();
         }
 
         if (this.mediaCapture) {
@@ -901,6 +1703,10 @@ class FilterApp {
 
         if (this.faceTracker) {
             this.faceTracker.stop();
+        }
+
+        if (this.segmentationManager) {
+            this.segmentationManager.dispose();
         }
 
         if (this.characterManager) {

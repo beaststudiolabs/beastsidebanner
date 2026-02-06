@@ -10,6 +10,7 @@
 @import './components/filter-container.css';
 @import './components/character-indicator.css';
 @import './components/capture-controls.css';
+@import './components/camera-ui.css';
 
 /* Global Reset */
 * {
@@ -22,6 +23,7 @@ body {
     font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
     -webkit-font-smoothing: antialiased;
     -moz-osx-font-smoothing: grayscale;
+    background-color: #000000;
 }
 
 /* Root container */

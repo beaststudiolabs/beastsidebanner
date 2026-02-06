@@ -169,21 +169,24 @@ class FaceTracker {
         const forehead = landmarks[10];         // Top of forehead
 
         // === FACE SCALE ===
-        // Based on distance between eyes (more stable than single measurement)
-        // This also indicates camera distance - larger = closer to camera
-        const eyeDistance = Math.sqrt(
-            Math.pow(rightEyeOuter.x - leftEyeOuter.x, 2) +
-            Math.pow(rightEyeOuter.y - leftEyeOuter.y, 2) +
-            Math.pow((rightEyeOuter.z || 0) - (leftEyeOuter.z || 0), 2)
+        // Use face width (cheekbones) instead of eyes - more stable during blinks
+        const leftCheek = landmarks[234];   // Left side of face
+        const rightCheek = landmarks[454];  // Right side of face
+
+        const faceWidth = Math.sqrt(
+            Math.pow(rightCheek.x - leftCheek.x, 2) +
+            Math.pow(rightCheek.y - leftCheek.y, 2) +
+            Math.pow((rightCheek.z || 0) - (leftCheek.z || 0), 2)
         );
-        const scale = eyeDistance * 10;
+
+        // Convert to scale based on reference face width at arm's length
+        const referenceFaceWidth = 0.35;
+        const scale = faceWidth / referenceFaceWidth;
 
         // === FACE CENTER (position) ===
         // Use nose bridge as the center point
-        // Z position derived from face scale (bigger face = closer to camera)
-        // Baseline ~0.2 eye distance at normal viewing distance
-        const baselineEyeDistance = 0.18;
-        const zFromScale = (eyeDistance - baselineEyeDistance) * 10; // Positive = closer
+        // Z position derived from normalized scale (1.0 = reference distance)
+        const zFromScale = (scale - 1.0) * 2; // Positive = closer than reference
 
         const faceCenter = {
             x: (noseBridge.x - 0.5) * 2,      // Convert 0-1 to -1 to 1

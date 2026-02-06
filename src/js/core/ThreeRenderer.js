@@ -33,8 +33,13 @@ class ThreeRenderer {
         // Create scene
         this.scene = new THREE.Scene();
 
+        // Get actual canvas container size
+        const container = this.canvas.parentElement;
+        const width = container?.clientWidth || window.innerWidth;
+        const height = container?.clientHeight || window.innerHeight;
+
         // Set up camera (perspective for realistic depth)
-        const aspect = window.innerWidth / window.innerHeight;
+        const aspect = width / height;
         this.camera = new THREE.PerspectiveCamera(
             50,      // Field of view (degrees)
             aspect,  // Aspect ratio
@@ -50,7 +55,7 @@ class ThreeRenderer {
             antialias: this.perfSettings.antialiasing,
             preserveDrawingBuffer: true  // Required for capturing canvas content
         });
-        this.renderer.setSize(window.innerWidth, window.innerHeight);
+        this.renderer.setSize(width, height);
         this.renderer.setPixelRatio(this.perfSettings.pixelRatio); // Use performance config
         this.renderer.setClearColor(0x000000, 0); // Transparent background
 
@@ -300,8 +305,10 @@ class ThreeRenderer {
      * Handle window resize
      */
     onWindowResize() {
-        const width = window.innerWidth;
-        const height = window.innerHeight;
+        // Use container size, not window size
+        const container = this.canvas.parentElement;
+        const width = container?.clientWidth || window.innerWidth;
+        const height = container?.clientHeight || window.innerHeight;
 
         // Update camera aspect ratio
         this.camera.aspect = width / height;

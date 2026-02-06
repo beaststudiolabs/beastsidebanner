@@ -5,6 +5,9 @@
  * Provides download and native share functionality.
  */
 
+import BackgroundEffects from '../effects/BackgroundEffects.js';
+import PhotoFilters from '../effects/PhotoFilters.js';
+
 class MediaCapture {
     constructor(canvasElement, videoElement, eventEmitter) {
         this.canvas = canvasElement;
@@ -29,6 +32,20 @@ class MediaCapture {
         this.compositeCanvas = null;
         this.compositeCtx = null;
         this.compositeAnimationId = null;
+
+        // Effects and filters
+        this.backgroundEffects = new BackgroundEffects();
+        this.photoFilters = new PhotoFilters();
+
+        // Segmentation manager (for virtual backgrounds)
+        this.segmentationManager = null;
+    }
+
+    /**
+     * Set the segmentation manager for virtual backgrounds
+     */
+    setSegmentationManager(segmentationManager) {
+        this.segmentationManager = segmentationManager;
     }
 
     /**
@@ -59,11 +76,13 @@ class MediaCapture {
 
     /**
      * Draw composite frame (video + 3D overlay)
+     * @param {boolean} applyEffects - Whether to apply background effects (default: true)
      */
-    drawCompositeFrame() {
-        // Get dimensions - prefer video dimensions, fall back to canvas
-        const width = this.video.videoWidth || this.canvas.width || 640;
-        const height = this.video.videoHeight || this.canvas.height || 480;
+    drawCompositeFrame(applyEffects = true) {
+        // Use the 3D canvas dimensions (matches the live viewport) so the
+        // character overlay aligns exactly with what the user sees on screen.
+        const width = this.canvas.width || this.video.videoWidth || 640;
+        const height = this.canvas.height || this.video.videoHeight || 480;
 
         // Ensure composite canvas is sized correctly
         if (this.compositeCanvas.width !== width || this.compositeCanvas.height !== height) {
@@ -75,32 +94,85 @@ class MediaCapture {
         // Clear the canvas first
         this.compositeCtx.clearRect(0, 0, width, height);
 
-        // Draw video first (background) - mirrored to match selfie view
-        if (this.video.readyState >= 2) {
-            this.compositeCtx.save();
-            this.compositeCtx.translate(width, 0);
-            this.compositeCtx.scale(-1, 1);
-            this.compositeCtx.drawImage(this.video, 0, 0, width, height);
-            this.compositeCtx.restore();
+        // Check if virtual background is enabled
+        const useVirtualBg = this.segmentationManager && this.segmentationManager.isEnabled();
+
+        if (useVirtualBg) {
+            // compositeFrame already handles mirroring internally — no extra mirror here
+            const composited = this.segmentationManager.compositeFrame(
+                this.compositeCtx, this.video, width, height
+            );
+
+            if (!composited) {
+                // Fallback to regular mirrored video with cover-fit
+                this.drawVideoCoverFit(this.compositeCtx, width, height, true);
+            }
+        } else {
+            // Apply pre-effect (like blur) if enabled
+            if (applyEffects && this.backgroundEffects.hasPreEffect()) {
+                this.backgroundEffects.applyPreEffect(this.compositeCtx);
+            }
+
+            // Draw video (cover-fit + mirrored to match CSS object-fit: cover + scaleX(-1))
+            if (this.video.readyState >= 2) {
+                this.drawVideoCoverFit(this.compositeCtx, width, height, true);
+            }
+
+            // Reset pre-effect filter before drawing overlay
+            if (applyEffects && this.backgroundEffects.hasPreEffect()) {
+                this.backgroundEffects.resetPreEffect(this.compositeCtx);
+            }
+
+            // Apply post-effects (overlays like vignette, tints)
+            if (applyEffects) {
+                this.backgroundEffects.applyPostEffect(this.compositeCtx, width, height);
+            }
         }
 
-        // Draw 3D canvas overlay on top (the WebGL canvas with the filter)
-        // The canvas should be drawn at its actual display size, not stretched
-        // Get the actual display dimensions from CSS
-        const canvasDisplayWidth = this.canvas.clientWidth || this.canvas.width;
-        const canvasDisplayHeight = this.canvas.clientHeight || this.canvas.height;
+        // Draw 3D canvas overlay on top — composite canvas is the same
+        // size as the 3D canvas, so draw it 1:1 with no scaling
+        this.compositeCtx.drawImage(this.canvas, 0, 0, width, height);
+    }
 
-        // Calculate scaling to fit the composite canvas while maintaining aspect ratio
-        const scaleX = width / canvasDisplayWidth;
-        const scaleY = height / canvasDisplayHeight;
+    /**
+     * Draw video onto a canvas context using cover-fit (crop, no stretch).
+     * Replicates CSS object-fit: cover behavior.
+     * @param {CanvasRenderingContext2D} ctx - Target context
+     * @param {number} destW - Destination width
+     * @param {number} destH - Destination height
+     * @param {boolean} mirror - Whether to mirror horizontally (selfie mode)
+     */
+    drawVideoCoverFit(ctx, destW, destH, mirror = false) {
+        const srcW = this.video.videoWidth;
+        const srcH = this.video.videoHeight;
+        if (!srcW || !srcH) return;
 
-        // Draw the 3D canvas, scaling from its render size to composite size
-        // Use the same aspect ratio as the video to avoid skewing
-        this.compositeCtx.drawImage(
-            this.canvas,
-            0, 0, this.canvas.width, this.canvas.height,  // Source rect (full canvas)
-            0, 0, width, height                             // Dest rect (full composite)
-        );
+        const srcAspect = srcW / srcH;
+        const destAspect = destW / destH;
+
+        // Calculate source crop rect (center crop to match destination aspect)
+        let sx, sy, sw, sh;
+        if (srcAspect > destAspect) {
+            // Video is wider — crop sides
+            sh = srcH;
+            sw = srcH * destAspect;
+            sx = (srcW - sw) / 2;
+            sy = 0;
+        } else {
+            // Video is taller — crop top/bottom
+            sw = srcW;
+            sh = srcW / destAspect;
+            sx = 0;
+            sy = (srcH - sh) / 2;
+        }
+
+        ctx.save();
+        if (mirror) {
+            ctx.translate(destW, 0);
+            ctx.scale(-1, 1);
+        }
+        ctx.drawImage(this.video, sx, sy, sw, sh, 0, 0, destW, destH);
+        ctx.restore();
     }
 
     /**
@@ -135,8 +207,17 @@ class MediaCapture {
             // Draw composite frame first
             this.drawCompositeFrame();
 
-            // Capture composite canvas as blob
-            this.compositeCanvas.toBlob((blob) => {
+            // Apply photo filter if set
+            const filterString = this.photoFilters.getFilterString();
+            let captureCanvas = this.compositeCanvas;
+
+            if (filterString !== 'none') {
+                // Create a filtered copy
+                captureCanvas = this.photoFilters.createFilteredCanvas(this.compositeCanvas);
+            }
+
+            // Capture canvas as blob
+            captureCanvas.toBlob((blob) => {
                 if (!blob) {
                     throw new Error('Failed to capture canvas');
                 }
@@ -145,7 +226,9 @@ class MediaCapture {
                     blob,
                     url: URL.createObjectURL(blob),
                     timestamp: Date.now(),
-                    filename: `beastside-filter-${Date.now()}.jpg`
+                    filename: `beastside-filter-${Date.now()}.jpg`,
+                    filter: this.photoFilters.getFilter(),
+                    backgroundEffect: this.backgroundEffects.getEffect()
                 };
 
                 console.log('MediaCapture: Photo captured');
@@ -386,86 +469,166 @@ class MediaCapture {
 
     /**
      * Share photo using native share API
+     * @param {Object} photo - Photo object to share
+     * @returns {Promise<{success: boolean, method: string}>}
      */
     async sharePhoto(photo = this.lastCapturedPhoto) {
         if (!photo) {
             console.warn('MediaCapture: No photo to share');
-            return;
-        }
-
-        // Check if share API is available
-        if (!navigator.share) {
-            console.warn('MediaCapture: Share API not available - falling back to download');
-            this.downloadPhoto(photo);
-            return;
+            return { success: false, method: 'none' };
         }
 
         console.log('MediaCapture: Sharing photo...');
 
-        try {
-            const file = new File([photo.blob], photo.filename, { type: 'image/jpeg' });
+        // Check if Web Share API with files is available
+        if (navigator.share && navigator.canShare) {
+            try {
+                const file = new File([photo.blob], photo.filename, { type: 'image/jpeg' });
+                const shareData = {
+                    title: 'BEASTSIDE Filter',
+                    text: 'Check out my BEASTSIDE character! #BEASTSIDE',
+                    files: [file]
+                };
 
-            await navigator.share({
-                title: 'BEASTSIDE Filter',
-                text: 'Check out my BEASTSIDE character!',
-                files: [file]
-            });
-
-            console.log('MediaCapture: Photo shared');
-            this.events.emit('photoShared', photo);
-
-        } catch (error) {
-            if (error.name === 'AbortError') {
-                console.log('MediaCapture: Share cancelled by user');
-            } else {
-                console.error('MediaCapture: Share failed', error);
-                // Fallback to download
-                this.downloadPhoto(photo);
+                if (navigator.canShare(shareData)) {
+                    await navigator.share(shareData);
+                    console.log('MediaCapture: Photo shared via Web Share API');
+                    this.events.emit('photoShared', { ...photo, method: 'native' });
+                    return { success: true, method: 'native' };
+                }
+            } catch (error) {
+                if (error.name === 'AbortError') {
+                    console.log('MediaCapture: Share cancelled by user');
+                    return { success: false, method: 'cancelled' };
+                }
+                console.warn('MediaCapture: Native share failed, trying fallback', error);
             }
         }
+
+        // Fallback: Try to copy image to clipboard
+        try {
+            const copyResult = await this.copyImageToClipboard(photo.blob);
+            if (copyResult) {
+                console.log('MediaCapture: Photo copied to clipboard');
+                this.events.emit('photoShared', { ...photo, method: 'clipboard' });
+                return { success: true, method: 'clipboard' };
+            }
+        } catch (error) {
+            console.warn('MediaCapture: Clipboard copy failed', error);
+        }
+
+        // Final fallback: Download
+        console.log('MediaCapture: Falling back to download');
+        this.downloadPhoto(photo);
+        return { success: true, method: 'download' };
     }
 
     /**
      * Share video using native share API
+     * @param {Object} video - Video object to share
+     * @returns {Promise<{success: boolean, method: string}>}
      */
     async shareVideo(video = this.lastCapturedVideo) {
         if (!video) {
             console.warn('MediaCapture: No video to share');
-            return;
-        }
-
-        // Check if share API is available
-        if (!navigator.share) {
-            console.warn('MediaCapture: Share API not available - falling back to download');
-            this.downloadVideo(video);
-            return;
+            return { success: false, method: 'none' };
         }
 
         console.log('MediaCapture: Sharing video...');
 
-        try {
-            // Use correct MIME type based on format (fallback to blob type)
-            const mimeType = video.format === 'MP4' ? 'video/mp4' : (video.blob.type || 'video/webm');
-            const file = new File([video.blob], video.filename, { type: mimeType });
+        // Check if Web Share API with files is available
+        if (navigator.share && navigator.canShare) {
+            try {
+                const mimeType = video.format === 'MP4' ? 'video/mp4' : (video.blob.type || 'video/webm');
+                const file = new File([video.blob], video.filename, { type: mimeType });
+                const shareData = {
+                    title: 'BEASTSIDE Filter',
+                    text: 'Check out my BEASTSIDE character! #BEASTSIDE',
+                    files: [file]
+                };
 
-            await navigator.share({
-                title: 'BEASTSIDE Filter',
-                text: 'Check out my BEASTSIDE character!',
-                files: [file]
-            });
-
-            console.log(`MediaCapture: Video shared as ${video.format}`);
-            this.events.emit('videoShared', video);
-
-        } catch (error) {
-            if (error.name === 'AbortError') {
-                console.log('MediaCapture: Share cancelled by user');
-            } else {
-                console.error('MediaCapture: Share failed', error);
-                // Fallback to download
-                this.downloadVideo(video);
+                if (navigator.canShare(shareData)) {
+                    await navigator.share(shareData);
+                    console.log(`MediaCapture: Video shared via Web Share API as ${video.format}`);
+                    this.events.emit('videoShared', { ...video, method: 'native' });
+                    return { success: true, method: 'native' };
+                }
+            } catch (error) {
+                if (error.name === 'AbortError') {
+                    console.log('MediaCapture: Share cancelled by user');
+                    return { success: false, method: 'cancelled' };
+                }
+                console.warn('MediaCapture: Native share failed, trying fallback', error);
             }
         }
+
+        // Videos can't be copied to clipboard, so fallback to download
+        console.log('MediaCapture: Falling back to download for video');
+        this.downloadVideo(video);
+        return { success: true, method: 'download' };
+    }
+
+    /**
+     * Copy image to clipboard
+     * @param {Blob} blob - Image blob to copy
+     * @returns {Promise<boolean>} True if successful
+     */
+    async copyImageToClipboard(blob) {
+        if (!navigator.clipboard || !navigator.clipboard.write) {
+            return false;
+        }
+
+        try {
+            // Convert to PNG for clipboard (more widely supported)
+            const pngBlob = await this.convertToPng(blob);
+            const clipboardItem = new ClipboardItem({
+                'image/png': pngBlob
+            });
+            await navigator.clipboard.write([clipboardItem]);
+            return true;
+        } catch (error) {
+            console.warn('MediaCapture: Clipboard write failed', error);
+            return false;
+        }
+    }
+
+    /**
+     * Convert image blob to PNG format
+     * @param {Blob} blob - Source image blob
+     * @returns {Promise<Blob>} PNG blob
+     */
+    async convertToPng(blob) {
+        return new Promise((resolve) => {
+            const img = new Image();
+            img.onload = () => {
+                const canvas = document.createElement('canvas');
+                canvas.width = img.width;
+                canvas.height = img.height;
+                const ctx = canvas.getContext('2d');
+                ctx.drawImage(img, 0, 0);
+                canvas.toBlob((pngBlob) => {
+                    URL.revokeObjectURL(img.src);
+                    resolve(pngBlob);
+                }, 'image/png');
+            };
+            img.src = URL.createObjectURL(blob);
+        });
+    }
+
+    /**
+     * Check if native share is available
+     * @returns {boolean}
+     */
+    canShare() {
+        return !!(navigator.share && navigator.canShare);
+    }
+
+    /**
+     * Check if clipboard write is available
+     * @returns {boolean}
+     */
+    canCopyToClipboard() {
+        return !!(navigator.clipboard && navigator.clipboard.write);
     }
 
     /**
@@ -481,6 +644,38 @@ class MediaCapture {
      */
     getIsRecording() {
         return this.isRecording;
+    }
+
+    /**
+     * Get background effects instance
+     * @returns {BackgroundEffects}
+     */
+    getBackgroundEffects() {
+        return this.backgroundEffects;
+    }
+
+    /**
+     * Get photo filters instance
+     * @returns {PhotoFilters}
+     */
+    getPhotoFilters() {
+        return this.photoFilters;
+    }
+
+    /**
+     * Set background effect
+     * @param {string} effectId - Effect identifier
+     */
+    setBackgroundEffect(effectId) {
+        this.backgroundEffects.setEffect(effectId);
+    }
+
+    /**
+     * Set photo filter
+     * @param {string} filterId - Filter identifier
+     */
+    setPhotoFilter(filterId) {
+        this.photoFilters.setFilter(filterId);
     }
 
     /**

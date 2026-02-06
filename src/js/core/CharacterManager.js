@@ -23,7 +23,6 @@ class CharacterManager {
 
         // Character configuration (paths are relative to modelsBasePath)
         this.characters = [
-            { id: 'hendrix', name: 'Hendrix', path: 'Hendrix.glb', loaded: false, thumbnail: null },
             { id: 'rafsby', name: 'Rafsby', path: '1.glb', loaded: false, thumbnail: null },
             // Other characters commented out for now:
             // { id: 'boy1', name: 'Boy #1', path: 'boy1.glb', loaded: false },
@@ -45,29 +44,14 @@ class CharacterManager {
         // Add mappings here if your GLB uses different naming conventions
         // Example: { 'eyeBlinkLeft': 'EyeBlink_L', 'jawOpen': 'Jaw_Open' }
         this.blendshapeNameMap = {
-            // Standard ARKit names -> Your GLB's names (modify as needed)
-            // Uncomment and adjust these if your model uses different names:
-            // 'eyeBlinkLeft': 'eyeBlink_L',
-            // 'eyeBlinkRight': 'eyeBlink_R',
-            // 'eyeWideLeft': 'eyeWide_L',
-            // 'eyeWideRight': 'eyeWide_R',
-            // 'jawOpen': 'jawOpen',
-            // 'mouthSmileLeft': 'mouthSmile_L',
-            // 'mouthSmileRight': 'mouthSmile_R',
-            // 'mouthFrownLeft': 'mouthFrown_L',
-            // 'mouthFrownRight': 'mouthFrown_R',
-            // 'browInnerUp': 'browInnerUp',
-            // 'browOuterUpLeft': 'browOuterUp_L',
-            // 'browOuterUpRight': 'browOuterUp_R',
-            // 'browDownLeft': 'browDown_L',
-            // 'browDownRight': 'browDown_R',
         };
 
         // Model adjustments (tweak these to fit your GLB)
         this.modelConfig = {
             // === SCALE ===
-            scaleBase: 6.0,         // Base scale of the model
-            scaleMultiplier: 5.0,   // How much face size affects scale
+            // Scale is now normalized: 1.0 = face at reference distance
+            scaleBase: 28.0,          // Base scale when face is at reference distance (scale=1.0)
+            scaleMultiplier: 1.0,    // How much face distance affects scale
             scaleMin: 0.1,           // Minimum allowed scale
             scaleMax: 50.0,          // Maximum allowed scale (increase for bigger)
             scaleX: 1.0,             // Width scale multiplier (increase if too narrow)
@@ -75,17 +59,17 @@ class CharacterManager {
             scaleZ: 1.0,             // Depth scale multiplier
 
             // === POSITION ===
-            positionScale: 1.0,      // Overall position sensitivity
-            positionScaleX: 1.0,     // Horizontal movement multiplier
-            positionScaleY: 1.0,     // Vertical movement multiplier
-            positionScaleZ: 5.0,     // Depth movement multiplier (forward/backward)
+            positionScale: 2.0,      // Overall position sensitivity
+            positionScaleX: 2.0,     // Horizontal movement multiplier
+            positionScaleY: 2.0,     // Vertical movement multiplier
+            positionScaleZ: 2.0,     // Depth movement multiplier (forward/backward)
             positionOffsetX: 0.0,    // Horizontal offset (positive = right)
             positionOffsetY: 0.0,    // Vertical offset (positive = up)
-            positionOffsetZ: -1.0,    // Depth offset (positive = forward)
+            positionOffsetZ: -10.0,    // Depth offset (positive = forward)
             mirrorX: true,           // Mirror X axis for selfie-camera
 
             // === ROTATION ===
-            baseRotationX: -0.5,        // Base X rotation in radians (tilt forward/back on load)
+            baseRotationX: -0.8,        // Base X rotation in radians (tilt forward/back on load)
             baseRotationY: Math.PI,  // Base Y rotation in radians (180° = face camera)
             baseRotationZ: 0,        // Base Z rotation in radians (tilt sideways on load)
             rotationScale: 1.0,      // Overall rotation sensitivity
@@ -98,19 +82,19 @@ class CharacterManager {
 
             // === SMOOTHING ===
             // Higher values = smoother but more lag (0-0.95 range)
-            smoothing: 0.5,          // Overall smoothing (0 = none, higher = smoother but laggy)
-            positionSmoothing: 0.6,  // Position-specific smoothing
-            rotationSmoothing: 0.6,  // Rotation-specific smoothing
-            scaleSmoothing: 0.7,     // Scale-specific smoothing
-            blendshapeSmoothing: 0.75, // Blendshape/expression smoothing (higher = less jitter)
-            eyeSmoothing: 0.8,       // Extra smoothing for eyes (they jitter more)
+            smoothing: 0.7,          // Overall smoothing (0 = none, higher = smoother but laggy)
+            positionSmoothing: 0.5,  // Position-specific smoothing
+            rotationSmoothing: 0.7,  // Rotation-specific smoothing
+            scaleSmoothing: 0.9,     // Scale-specific smoothing
+            blendshapeSmoothing: 0.9, // Blendshape/expression smoothing (higher = less jitter)
+            eyeSmoothing: 0.6,       // Lower = faster blink response (was 0.9, too laggy for blinks)
 
             // === DEADZONES (ignore small movements to reduce jitter) ===
             // Higher values = less jitter but less responsive to small movements
             positionDeadzone: 0.01,  // Ignore position changes smaller than this
-            rotationDeadzone: 0.02,  // Ignore rotation changes smaller than this
-            blendshapeDeadzone: 0.03, // Ignore blendshape changes smaller than this
-            eyeDeadzone: 0.06        // Higher deadzone for eyes to reduce jitter
+            rotationDeadzone: 0.1,  // Ignore rotation changes smaller than this
+            blendshapeDeadzone: 0.1, // Ignore blendshape changes smaller than this
+            eyeDeadzone: 0.04       // Lowered so blinks can reach full closure (was 0.1)
         };
 
         // Smoothed transform values (for lerping to reduce jitter)
@@ -638,6 +622,7 @@ class CharacterManager {
         const targetRoll = (rotation.roll * cfg.rotationScale * cfg.rollScale) + cfg.rollOffset;
 
         // === CALCULATE TARGET SCALE ===
+        // Scale is now purely based on face distance, no viewport dependency
         const baseScale = cfg.scaleBase + (scale * cfg.scaleMultiplier);
         const minScale = cfg.scaleMin || 0.1;
         const maxScale = cfg.scaleMax || 50.0;

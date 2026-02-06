@@ -1,0 +1,708 @@
+/**
+ * Camera UI Styles - Modern Camera App Design
+ * Updated: Feb 5, 2026
+ *
+ * Features:
+ * - Bottom island control bar (pill-shaped glassmorphism)
+ * - Top corner buttons (effects/settings)
+ * - Character selector above island
+ * - Large centered capture button
+ */
+
+/* ==========================================
+   Top Control Buttons
+   ========================================== */
+
+.top-controls {
+    position: absolute;
+    top: calc(20px + env(safe-area-inset-top, 0px));
+    left: 0;
+    right: 0;
+    padding: 0 calc(20px + env(safe-area-inset-right, 0px)) 0 calc(20px + env(safe-area-inset-left, 0px));
+    display: flex;
+    justify-content: space-between;
+    z-index: 15;
+    pointer-events: none;
+}
+
+.top-controls > * {
+    pointer-events: auto;
+}
+
+.top-btn {
+    width: 52px;
+    height: 52px;
+    border-radius: 50%;
+    background: rgba(80, 80, 80, 0.6);
+    backdrop-filter: blur(20px);
+    -webkit-backdrop-filter: blur(20px);
+    border: none;
+    color: #fff;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: all 0.2s ease;
+    box-shadow: 0 2px 12px rgba(0, 0, 0, 0.2);
+}
+
+.top-btn svg {
+    width: 22px;
+    height: 22px;
+    stroke: #fff;
+    stroke-width: 2;
+}
+
+.top-btn:hover {
+    background: rgba(100, 100, 100, 0.8);
+    transform: scale(1.05);
+}
+
+.top-btn:active {
+    transform: scale(0.95);
+}
+
+.top-btn:focus-visible {
+    outline: 3px solid #fff;
+    outline-offset: 3px;
+}
+
+/* ==========================================
+   Bottom Island Control Bar
+   ========================================== */
+
+.bottom-island {
+    position: absolute;
+    bottom: calc(40px + env(safe-area-inset-bottom, 0px));
+    left: 50%;
+    transform: translateX(-50%);
+    display: flex;
+    align-items: center;
+    gap: 20px;
+    padding: 12px 20px;
+    background: rgba(80, 80, 80, 0.5);
+    backdrop-filter: blur(30px);
+    -webkit-backdrop-filter: blur(30px);
+    border-radius: 50px;
+    z-index: 15;
+    box-shadow: 0 4px 30px rgba(0, 0, 0, 0.3);
+}
+
+/* Thumbnail / Last Capture */
+.island-thumbnail {
+    width: 52px;
+    height: 52px;
+    border-radius: 50%;
+    background: rgba(255, 255, 255, 0.1);
+    border: 2px solid rgba(255, 255, 255, 0.3);
+    overflow: hidden;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.island-thumbnail:hover {
+    border-color: rgba(255, 255, 255, 0.6);
+    transform: scale(1.05);
+}
+
+.island-thumbnail img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    border-radius: 50%;
+}
+
+.island-thumbnail:has(img) {
+    border-color: rgba(255, 255, 255, 0.5);
+}
+
+.island-thumbnail svg {
+    width: 22px;
+    height: 22px;
+    stroke: rgba(255, 255, 255, 0.5);
+    stroke-width: 2;
+}
+
+/* Main Capture Button */
+.capture-btn {
+    width: 76px;
+    height: 76px;
+    border-radius: 50%;
+    background: #fff;
+    border: 4px solid rgba(255, 255, 255, 0.3);
+    cursor: pointer;
+    transition: all 0.15s ease;
+    position: relative;
+    box-shadow: 0 2px 15px rgba(0, 0, 0, 0.2);
+}
+
+.capture-btn::before {
+    content: '';
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    width: 60px;
+    height: 60px;
+    border-radius: 50%;
+    background: #fff;
+    transition: all 0.15s ease;
+}
+
+.capture-btn:hover::before {
+    width: 56px;
+    height: 56px;
+}
+
+.capture-btn:active {
+    transform: scale(0.92);
+}
+
+.capture-btn:active::before {
+    width: 50px;
+    height: 50px;
+}
+
+.capture-btn:focus-visible {
+    outline: 3px solid #fff;
+    outline-offset: 6px;
+}
+
+/* Recording state - solid red button */
+.capture-btn.recording {
+    background: #ef4444;
+    border-color: rgba(239, 68, 68, 0.5);
+}
+
+.capture-btn.recording::before {
+    width: 100%;
+    height: 100%;
+    border-radius: 50%;
+    background: #ef4444;
+    animation: pulse-red 1.5s ease-in-out infinite;
+}
+
+@keyframes pulse-red {
+    0%, 100% {
+        box-shadow: 0 0 0 0 rgba(239, 68, 68, 0.4);
+    }
+    50% {
+        box-shadow: 0 0 0 12px rgba(239, 68, 68, 0);
+    }
+}
+
+/* Video Mode indicator - smaller inner circle */
+.capture-btn.video-mode::before {
+    width: 54px;
+    height: 54px;
+}
+
+/* Island Action Button (right side) */
+.island-action {
+    width: 52px;
+    height: 52px;
+    border-radius: 50%;
+    background: rgba(255, 255, 255, 0.15);
+    border: none;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.island-action svg {
+    width: 22px;
+    height: 22px;
+    stroke: #fff;
+    stroke-width: 2;
+}
+
+.island-action:hover {
+    background: rgba(255, 255, 255, 0.25);
+    transform: scale(1.05);
+}
+
+.island-action:active {
+    transform: scale(0.95);
+}
+
+.island-action:focus-visible {
+    outline: 3px solid #fff;
+    outline-offset: 3px;
+}
+
+/* ==========================================
+   Character Selector (above island)
+   ========================================== */
+
+.character-selector {
+    position: absolute;
+    bottom: calc(160px + env(safe-area-inset-bottom, 0px));
+    left: 50%;
+    transform: translateX(-50%);
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 6px;
+    z-index: 15;
+    cursor: pointer;
+    padding: 8px 20px;
+    transition: all 0.2s ease;
+}
+
+.character-selector:hover {
+    opacity: 0.8;
+}
+
+.character-selector-name {
+    color: #fff;
+    font-size: 14px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 2px;
+    text-shadow: 0 2px 8px rgba(0, 0, 0, 0.5);
+}
+
+.character-selector-dot {
+    width: 6px;
+    height: 6px;
+    background: #fff;
+    border-radius: 50%;
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.3);
+}
+
+/* Mode Toggle Button (in island) */
+.island-mode {
+    width: 52px;
+    height: 52px;
+    border-radius: 50%;
+    background: rgba(255, 255, 255, 0.15);
+    border: none;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.island-mode svg {
+    width: 22px;
+    height: 22px;
+    stroke: #fff;
+    stroke-width: 2;
+}
+
+.island-mode:hover {
+    background: rgba(255, 255, 255, 0.25);
+    transform: scale(1.05);
+}
+
+.island-mode:active {
+    transform: scale(0.95);
+}
+
+.island-mode:focus-visible {
+    outline: 3px solid #fff;
+    outline-offset: 3px;
+}
+
+/* ==========================================
+   Tooltips (show below)
+   ========================================== */
+
+/* Simple tooltip on hover */
+[title] {
+    position: relative;
+}
+
+.btn-preview[title]:hover::after,
+.effect-item[title]:hover::after,
+.top-btn[title]:hover::after {
+    content: attr(title);
+    position: absolute;
+    top: calc(100% + 8px);
+    left: 50%;
+    transform: translateX(-50%);
+    background: rgba(0, 0, 0, 0.9);
+    color: #fff;
+    padding: 6px 12px;
+    border-radius: 6px;
+    font-size: 12px;
+    font-weight: 500;
+    white-space: nowrap;
+    z-index: 100;
+    pointer-events: none;
+    animation: tooltipFade 0.15s ease;
+}
+
+@keyframes tooltipFade {
+    from {
+        opacity: 0;
+        transform: translateX(-50%) translateY(-4px);
+    }
+    to {
+        opacity: 1;
+        transform: translateX(-50%) translateY(0);
+    }
+}
+
+/* ==========================================
+   Recording Timer (above island)
+   ========================================== */
+
+.recording-indicator {
+    position: absolute;
+    bottom: calc(200px + env(safe-area-inset-bottom, 0px));
+    left: 50%;
+    transform: translateX(-50%);
+    display: none;
+    align-items: center;
+    gap: 10px;
+    background: rgba(80, 80, 80, 0.6);
+    backdrop-filter: blur(20px);
+    -webkit-backdrop-filter: blur(20px);
+    padding: 10px 20px;
+    border-radius: 30px;
+    z-index: 15;
+}
+
+.recording-indicator.visible {
+    display: flex;
+}
+
+.recording-dot {
+    width: 10px;
+    height: 10px;
+    background: #ef4444;
+    border-radius: 50%;
+    animation: blink 1s step-start infinite;
+}
+
+@keyframes blink {
+    50% { opacity: 0.5; }
+}
+
+.recording-time {
+    font-family: 'SF Mono', 'Monaco', 'Menlo', monospace;
+    font-size: 16px;
+    font-weight: 600;
+    color: #fff;
+    letter-spacing: 1px;
+}
+
+/* ==========================================
+   Effects Panel (dropdown from top-left)
+   ========================================== */
+
+.effects-dropdown {
+    position: absolute;
+    top: calc(80px + env(safe-area-inset-top, 0px));
+    left: calc(20px + env(safe-area-inset-left, 0px));
+    background: rgba(80, 80, 80, 0.6);
+    backdrop-filter: blur(30px);
+    -webkit-backdrop-filter: blur(30px);
+    border-radius: 16px;
+    padding: 16px;
+    min-width: 200px;
+    z-index: 20;
+    opacity: 0;
+    visibility: hidden;
+    transform: translateY(-10px);
+    transition: all 0.2s ease;
+    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.3);
+}
+
+.effects-dropdown.visible {
+    opacity: 1;
+    visibility: visible;
+    transform: translateY(0);
+}
+
+.effects-section {
+    margin-bottom: 16px;
+}
+
+.effects-section:last-child {
+    margin-bottom: 0;
+}
+
+.effects-section-title {
+    color: rgba(255, 255, 255, 0.5);
+    font-size: 11px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    margin-bottom: 10px;
+}
+
+.effects-grid {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 8px;
+}
+
+.effect-item {
+    width: 40px;
+    height: 40px;
+    border-radius: 12px;
+    background: rgba(255, 255, 255, 0.1);
+    border: 2px solid transparent;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: all 0.2s ease;
+}
+
+.effect-item svg {
+    width: 18px;
+    height: 18px;
+    stroke: #fff;
+    stroke-width: 2;
+}
+
+.effect-item:hover {
+    background: rgba(255, 255, 255, 0.2);
+}
+
+.effect-item.active {
+    background: rgba(255, 255, 255, 0.25);
+    border-color: #fff;
+}
+
+.effect-item:focus-visible {
+    outline: 2px solid #fff;
+    outline-offset: 2px;
+}
+
+/* ==========================================
+   Character Picker Dropdown
+   ========================================== */
+
+.character-picker {
+    position: absolute;
+    bottom: calc(210px + env(safe-area-inset-bottom, 0px));
+    left: 50%;
+    transform: translateX(-50%) translateY(10px);
+    background: rgba(80, 80, 80, 0.6);
+    backdrop-filter: blur(30px);
+    -webkit-backdrop-filter: blur(30px);
+    border-radius: 16px;
+    padding: 16px;
+    min-width: 200px;
+    z-index: 20;
+    opacity: 0;
+    visibility: hidden;
+    transition: all 0.2s ease;
+    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.3);
+}
+
+.character-picker.visible {
+    opacity: 1;
+    visibility: visible;
+    transform: translateX(-50%) translateY(0);
+}
+
+.character-picker-title {
+    color: rgba(255, 255, 255, 0.5);
+    font-size: 11px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    margin-bottom: 12px;
+}
+
+.character-picker .character-dots {
+    display: grid;
+    grid-template-columns: repeat(5, 1fr);
+    gap: 8px;
+    justify-items: center;
+}
+
+.character-picker .dot {
+    width: 44px;
+    height: 44px;
+    border-radius: 50%;
+    background: rgba(255, 255, 255, 0.15);
+    border: 2px solid transparent;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: all 0.2s ease;
+    font-size: 14px;
+    font-weight: 600;
+    color: #fff;
+    overflow: hidden;
+}
+
+.character-picker .dot img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+}
+
+.character-picker .dot:hover {
+    background: rgba(255, 255, 255, 0.25);
+    transform: scale(1.1);
+}
+
+.character-picker .dot.active {
+    border-color: #fff;
+    background: rgba(255, 255, 255, 0.3);
+}
+
+.character-picker .character-name {
+    color: #fff;
+    font-size: 14px;
+    font-weight: 500;
+    text-align: center;
+    margin-top: 12px;
+}
+
+/* ==========================================
+   Mobile Adjustments
+   ========================================== */
+
+@media (max-width: 768px) {
+    .top-controls {
+        padding: 0 calc(16px + env(safe-area-inset-right, 0px)) 0 calc(16px + env(safe-area-inset-left, 0px));
+    }
+
+    .top-btn {
+        width: 48px;
+        height: 48px;
+    }
+
+    .top-btn svg {
+        width: 20px;
+        height: 20px;
+    }
+
+    .bottom-island {
+        padding: 10px 16px;
+        gap: 16px;
+    }
+
+    .island-thumbnail {
+        width: 48px;
+        height: 48px;
+    }
+
+    .capture-btn {
+        width: 68px;
+        height: 68px;
+    }
+
+    .capture-btn::before {
+        width: 54px;
+        height: 54px;
+    }
+
+    .island-action,
+    .island-mode {
+        width: 48px;
+        height: 48px;
+    }
+
+    .character-selector {
+        bottom: calc(140px + env(safe-area-inset-bottom, 0px));
+    }
+
+    .effects-dropdown {
+        left: calc(16px + env(safe-area-inset-left, 0px));
+        min-width: 180px;
+        padding: 12px;
+    }
+
+    .effect-item {
+        width: 36px;
+        height: 36px;
+    }
+
+    .character-picker {
+        bottom: calc(190px + env(safe-area-inset-bottom, 0px));
+        min-width: 180px;
+        padding: 12px;
+    }
+
+    .character-picker .dot {
+        width: 38px;
+        height: 38px;
+    }
+}
+
+/* Small screens */
+@media (max-height: 700px) {
+    .bottom-island {
+        bottom: calc(24px + env(safe-area-inset-bottom, 0px));
+    }
+
+    .character-selector {
+        bottom: calc(130px + env(safe-area-inset-bottom, 0px));
+    }
+
+    .recording-indicator {
+        bottom: calc(160px + env(safe-area-inset-bottom, 0px));
+    }
+}
+
+/* Landscape mode */
+@media (orientation: landscape) and (max-height: 500px) {
+    .bottom-island {
+        bottom: calc(16px + env(safe-area-inset-bottom, 0px));
+        padding: 8px 16px;
+    }
+
+    .capture-btn {
+        width: 56px;
+        height: 56px;
+    }
+
+    .capture-btn::before {
+        width: 44px;
+        height: 44px;
+    }
+
+    .character-selector {
+        bottom: calc(100px + env(safe-area-inset-bottom, 0px));
+    }
+}
+
+/* ==========================================
+   Reduced Motion Support
+   ========================================== */
+
+@media (prefers-reduced-motion: reduce) {
+    .capture-btn.recording::before {
+        animation: none;
+    }
+
+    .recording-dot {
+        animation: none;
+    }
+
+    .effects-dropdown,
+    .character-picker {
+        transition: none;
+    }
+
+    .top-btn,
+    .island-thumbnail,
+    .island-action,
+    .island-mode,
+    .capture-btn,
+    .effect-item,
+    .character-picker .dot,
+    .character-selector {
+        transition: none;
+    }
+
+    [title]:hover::after {
+        animation: none;
+    }
+}

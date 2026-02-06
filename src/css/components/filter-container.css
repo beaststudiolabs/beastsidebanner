@@ -22,7 +22,9 @@
     left: 0;
     width: 100%;
     height: 100%;
-    background: linear-gradient(135deg, #1a1a2e 0%, #16213e 50%, #0f0f23 100%);
+    background: rgba(0, 0, 0, 0.85);
+    backdrop-filter: blur(20px);
+    -webkit-backdrop-filter: blur(20px);
     z-index: 1000;
     display: flex;
     align-items: center;
@@ -37,38 +39,44 @@
 }
 
 .loading-content {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
     text-align: center;
-    padding: 40px;
+    padding: 32px 48px;
+    background: rgba(80, 80, 80, 0.4);
+    backdrop-filter: blur(30px);
+    -webkit-backdrop-filter: blur(30px);
+    border-radius: 24px;
+    box-shadow: 0 4px 30px rgba(0, 0, 0, 0.3);
 }
 
-.loading-spinner {
-    width: 60px;
-    height: 60px;
-    margin: 0 auto 24px;
-    border: 4px solid rgba(255, 107, 53, 0.2);
-    border-top-color: #ff6b35;
-    border-radius: 50%;
-    animation: spin 1s linear infinite;
+/* Loading Progress Bar */
+.loading-progress {
+    width: 160px;
+    height: 3px;
+    background: rgba(255, 255, 255, 0.15);
+    border-radius: 2px;
+    margin: 20px auto 0;
+    overflow: hidden;
 }
 
-@keyframes spin {
-    to {
-        transform: rotate(360deg);
-    }
+.loading-progress-bar {
+    height: 100%;
+    background: #fff;
+    border-radius: 2px;
+    width: 0%;
+    transition: width 0.3s ease;
 }
 
 .loading-text {
     color: #fff;
-    font-size: 20px;
-    font-weight: 600;
-    margin-bottom: 8px;
-    letter-spacing: 0.5px;
-}
-
-.loading-subtext {
-    color: rgba(255, 255, 255, 0.6);
     font-size: 14px;
-    font-weight: 400;
+    font-weight: 500;
+    margin-top: 16px;
+    letter-spacing: 0.5px;
+    opacity: 0.9;
 }
 
 /* Reduced motion - no spinner animation */
@@ -100,16 +108,42 @@
     height: 100%;
     object-fit: cover;
     transform: scaleX(-1); /* Mirror video for selfie mode */
+    transition: filter 0.3s ease, opacity 0.3s ease;
+    z-index: 1;
 }
 
 /* Filter Canvas - Three.js renders here */
+/* Note: Do NOT set width/height here - Three.js manages canvas sizing */
 #filter-canvas {
+    position: absolute;
+    top: 0;
+    left: 0;
+    pointer-events: none; /* Allow clicks to pass through */
+    z-index: 2;
+}
+
+/* Background Canvas - for virtual backgrounds */
+#background-canvas {
     position: absolute;
     top: 0;
     left: 0;
     width: 100%;
     height: 100%;
-    pointer-events: none; /* Allow clicks to pass through */
+    object-fit: cover;
+    display: none; /* Hidden by default, shown when virtual bg is active */
+    z-index: 0;
+}
+
+/* Live Effect Overlay - for tints and vignette on live feed */
+.live-effect-overlay {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    pointer-events: none;
+    z-index: 1;
+    transition: background 0.3s ease;
 }
 
 /* Controls - with safe area for iOS notch */
@@ -118,6 +152,82 @@
     top: calc(20px + env(safe-area-inset-top, 0px));
     right: calc(20px + env(safe-area-inset-right, 0px));
     z-index: 10;
+}
+
+/* ==========================================
+   Utility Controls (Flip Camera, Fullscreen)
+   ========================================== */
+
+.utility-controls {
+    position: absolute;
+    top: calc(20px + env(safe-area-inset-top, 0px));
+    left: calc(20px + env(safe-area-inset-left, 0px));
+    z-index: 15;
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+}
+
+.btn-utility {
+    width: 56px;
+    height: 56px;
+    border-radius: 50%;
+    background: rgba(0, 0, 0, 0.5);
+    border: 1.5px solid rgba(255, 255, 255, 0.2);
+    color: #fff;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: all 0.2s ease;
+    backdrop-filter: blur(10px);
+    box-shadow: 0 2px 12px rgba(0, 0, 0, 0.3);
+}
+
+.btn-utility svg {
+    width: 22px;
+    height: 22px;
+    stroke: #fff;
+    stroke-width: 2;
+}
+
+.btn-utility:hover {
+    background: rgba(0, 0, 0, 0.8);
+    border-color: rgba(255, 255, 255, 0.6);
+    transform: scale(1.05);
+}
+
+.btn-utility:active {
+    transform: scale(0.95);
+}
+
+.btn-utility:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+}
+
+.btn-utility:focus-visible {
+    outline: 3px solid #ff6b35;
+    outline-offset: 3px;
+}
+
+/* Mobile adjustments */
+@media (max-width: 768px) {
+    .utility-controls {
+        top: calc(10px + env(safe-area-inset-top, 0px));
+        left: calc(10px + env(safe-area-inset-left, 0px));
+        gap: 10px;
+    }
+
+    .btn-utility {
+        width: 48px;
+        height: 48px;
+    }
+
+    .btn-utility svg {
+        width: 20px;
+        height: 20px;
+    }
 }
 
 /* Debug Info - Hidden by default, toggle with D key */
@@ -243,11 +353,55 @@
     letter-spacing: 0.5px;
 }
 
+.error-description {
+    color: rgba(255, 255, 255, 0.9);
+    font-size: 15px;
+    line-height: 1.6;
+    margin: 0;
+}
+
 .error-message p {
     color: rgba(255, 255, 255, 0.9);
     font-size: 15px;
     line-height: 1.6;
     margin: 0;
+}
+
+/* Error suggestions list */
+.error-suggestions {
+    text-align: left;
+    margin: 15px 0;
+    padding: 0;
+    list-style: none;
+}
+
+.error-suggestions li {
+    color: rgba(255, 255, 255, 0.7);
+    font-size: 13px;
+    line-height: 1.5;
+    padding: 6px 0 6px 24px;
+    position: relative;
+}
+
+.error-suggestions li::before {
+    content: '';
+    position: absolute;
+    left: 0;
+    top: 50%;
+    transform: translateY(-50%);
+    width: 6px;
+    height: 6px;
+    background: #ff6b35;
+    border-radius: 50%;
+}
+
+/* Error actions container */
+.error-actions {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 12px;
+    margin-top: 10px;
 }
 
 .error-retry-btn,
@@ -261,7 +415,6 @@
     color: #fff;
     cursor: pointer;
     transition: all 0.2s ease;
-    margin-top: 10px;
     box-shadow: 0 4px 15px rgba(239, 68, 68, 0.4);
     display: inline-flex;
     align-items: center;
@@ -285,6 +438,28 @@
 .error-retry-btn:active,
 .error-close-btn:active {
     transform: translateY(0);
+}
+
+/* Help link */
+.error-help-link {
+    color: rgba(255, 255, 255, 0.6);
+    font-size: 13px;
+    text-decoration: none;
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    transition: color 0.2s ease;
+}
+
+.error-help-link:hover {
+    color: #fff;
+}
+
+.error-help-link svg {
+    width: 14px;
+    height: 14px;
+    stroke: currentColor;
+    stroke-width: 2;
 }
 
 /* Mobile Optimization */
