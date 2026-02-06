@@ -159,6 +159,9 @@ class FilterApp {
                             <button id="timer-toggle-btn" class="effect-item" title="Timer" aria-label="Toggle countdown timer">
                                 <i data-lucide="timer"></i>
                             </button>
+                            <button id="resync-btn" class="effect-item" title="Resync" aria-label="Resync face tracking">
+                                <i data-lucide="refresh-cw"></i>
+                            </button>
                             <button id="close-btn" class="effect-item" title="Close" aria-label="Close filter">
                                 <i data-lucide="x"></i>
                             </button>
@@ -273,6 +276,7 @@ class FilterApp {
         this.fullscreenBtn = this.root.querySelector('#fullscreen-btn');
         this.muteBtn = this.root.querySelector('#mute-btn');
         this.timerToggleBtn = this.root.querySelector('#timer-toggle-btn');
+        this.resyncBtn = this.root.querySelector('#resync-btn');
         this.closeBtn = this.root.querySelector('#close-btn');
 
         // Effects lists
@@ -351,6 +355,11 @@ class FilterApp {
         this.fullscreenBtn.addEventListener('click', () => this.toggleFullscreen());
         this.muteBtn.addEventListener('click', () => this.toggleMute());
         this.timerToggleBtn.addEventListener('click', () => this.toggleCountdownTimer());
+        this.resyncBtn.addEventListener('click', () => {
+            if (this.characterManager) {
+                this.characterManager.resync();
+            }
+        });
         this.closeBtn.addEventListener('click', () => {
             // Close/exit the filter experience
             this.destroy();

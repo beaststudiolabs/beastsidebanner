@@ -908,6 +908,28 @@ class CharacterManager {
     }
 
     /**
+     * Resync character position to current face
+     * Resets smoothing so the character snaps to the next tracked face position
+     */
+    resync() {
+        this.firstTrackingFrame = true;
+        this.smoothedTransform = {
+            position: { x: 0, y: 0, z: 0 },
+            rotation: { pitch: 0, yaw: 0, roll: 0 },
+            scale: 1
+        };
+        this.smoothedBlendshapes = {};
+
+        // Briefly hide then re-show on next frame to snap cleanly
+        if (this.currentModel) {
+            this.currentModel.visible = false;
+            this.modelVisible = false;
+        }
+
+        console.log('CharacterManager: Resync triggered — will snap to next face position');
+    }
+
+    /**
      * Dispose of all resources
      */
     dispose() {
