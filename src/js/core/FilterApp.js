@@ -412,7 +412,7 @@ class FilterApp {
         // 3. Character Manager (needs Three.js scene) - 40-80%
         this.updateLoadingText('Loading character...');
         this.updateLoadingProgress(45);
-        this.characterManager = new CharacterManager(this.renderer.scene, this.events);
+        this.characterManager = new CharacterManager(this.renderer.scene, this.events, this.renderer.camera);
         await this.characterManager.initialize();
         this.updateLoadingProgress(80);
 

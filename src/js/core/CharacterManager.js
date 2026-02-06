@@ -10,9 +10,10 @@ import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
 import ThumbnailGenerator from '../utils/ThumbnailGenerator.js';
 
 class CharacterManager {
-    constructor(scene, eventEmitter) {
+    constructor(scene, eventEmitter, camera) {
         this.scene = scene;
         this.events = eventEmitter;
+        this.camera = camera;
         this.loader = new GLTFLoader();
 
         // Thumbnail generator for character selector
@@ -618,11 +619,21 @@ class CharacterManager {
         const cfg = this.modelConfig;
 
         // === CALCULATE TARGET POSITION ===
+        // Compute visible area at model's Z depth for correct screen-space mapping
+        const modelZ = cfg.positionOffsetZ + (position.z * cfg.positionScale * cfg.positionScaleZ);
+        const cameraZ = this.camera ? this.camera.position.z : 3;
+        const distance = Math.abs(cameraZ - modelZ);
+        const fov = this.camera ? this.camera.fov : 50;
+        const halfHeight = distance * Math.tan((fov / 2) * Math.PI / 180);
+        const aspect = this.camera ? this.camera.aspect : 1;
+        const halfWidth = halfHeight * aspect;
+
+        // Map face NDC position (-1 to 1) directly to world position at model depth
         // Mirror X position if needed (selfie camera is mirrored)
         const rawX = cfg.mirrorX ? -position.x : position.x;
-        const targetX = (rawX * cfg.positionScale * cfg.positionScaleX) + cfg.positionOffsetX;
-        const targetY = (position.y * cfg.positionScale * cfg.positionScaleY) + cfg.positionOffsetY;
-        const targetZ = (position.z * cfg.positionScale * cfg.positionScaleZ) + cfg.positionOffsetZ;
+        const targetX = (rawX * halfWidth) + cfg.positionOffsetX;
+        const targetY = (position.y * halfHeight) + cfg.positionOffsetY;
+        const targetZ = modelZ;
 
         // === CALCULATE TARGET ROTATION ===
         // Mirror yaw if X is mirrored
