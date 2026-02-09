@@ -51,13 +51,16 @@ class CharacterManager {
         this.modelConfig = {
             // === SCALE ===
             // Scale is now normalized: 1.0 = face at reference distance
-            scaleBase: 28.0,          // Base scale when face is at reference distance (scale=1.0)
-            scaleMultiplier: 1.0,    // How much face distance affects scale
+            scaleBase: 50.0,          // Base scale when face is at reference distance (scale=1.0)
+            scaleMultiplier: 30.0,   // How much face distance affects scale (high to match scaleBase)
             scaleMin: 0.1,           // Minimum allowed scale
-            scaleMax: 50.0,          // Maximum allowed scale (increase for bigger)
+            scaleMax: 100.0,          // Maximum allowed scale (increase for bigger)
             scaleX: 1.0,             // Width scale multiplier (increase if too narrow)
             scaleY: 1.0,             // Height scale multiplier (increase if too short)
             scaleZ: 1.0,             // Depth scale multiplier
+
+            // === MESH OFFSET (shift geometry in local space without affecting world position) ===
+            meshOffsetZ: 0.15,       // Push mesh backward (positive because model is rotated 180° on Y)
 
             // === POSITION ===
             positionScale: 2.0,      // Overall position sensitivity
@@ -65,8 +68,8 @@ class CharacterManager {
             positionScaleY: 2.0,     // Vertical movement multiplier
             positionScaleZ: 2.0,     // Depth movement multiplier (forward/backward)
             positionOffsetX: 0.0,    // Horizontal offset (positive = right)
-            positionOffsetY: 0.0,    // Vertical offset (positive = up)
-            positionOffsetZ: -10.0,    // Depth offset (positive = forward)
+            positionOffsetY: -2.0,   // Vertical offset (positive = up) - shifted down to cover chin
+            positionOffsetZ: -20.0,    // Depth offset (positive = forward)
             mirrorX: true,           // Mirror X axis for selfie-camera
 
             // === ROTATION ===
@@ -75,8 +78,8 @@ class CharacterManager {
             baseRotationZ: 0,        // Base Z rotation in radians (tilt sideways on load)
             rotationScale: 1.0,      // Overall rotation sensitivity
             pitchScale: 1.0,         // Up/down head tilt multiplier
-            yawScale: 8.0,          // Left/right head turn multiplier (high for full range of motion)
-            rollScale: -1.2,         // Head tilt (ear to shoulder) multiplier (negative = mirror for selfie)
+            yawScale: 6,          // Left/right head turn multiplier
+            rollScale: -1.0,         // Head tilt (ear to shoulder) multiplier (negative = mirror for selfie)
             pitchOffset: 0.0,        // Pitch offset in radians
             yawOffset: 0.0,          // Yaw offset in radians
             rollOffset: 0.0,         // Roll offset in radians
@@ -95,7 +98,7 @@ class CharacterManager {
             positionDeadzone: 0.01,  // Ignore position changes smaller than this
             rotationDeadzone: 0.1,  // Ignore rotation changes smaller than this
             blendshapeDeadzone: 0.1, // Ignore blendshape changes smaller than this
-            eyeDeadzone: 0.04       // Lowered so blinks can reach full closure (was 0.1)
+            eyeDeadzone: 0.12       // Higher = ignore small eye movements, only register real blinks
         };
 
         // Smoothed transform values (for lerping to reduce jitter)
@@ -558,24 +561,32 @@ class CharacterManager {
         // Store current skin color to re-apply after switch
         const previousSkinColor = this.currentSkinColor;
 
-        // Add new model to scene
+        // Add new model to scene wrapped in a pivot group
+        // The pivot group is what we position/rotate (at the face location)
+        // The model is offset inside it via meshOffsetZ so rotation happens
+        // around the face center, not the front of the head
         const character = this.characters[index];
-        this.currentModel = character.model;
         this.currentCharacterIndex = index;
 
-        if (this.currentModel) {
-            // Apply base rotation so model faces camera
-            this.currentModel.rotation.y = this.modelConfig.baseRotationY;
+        const pivot = new THREE.Group();
+        const model = character.model;
+
+        if (model) {
+            // Offset the model inside the pivot so the head center is at the pivot origin
+            model.position.set(0, 0, this.modelConfig.meshOffsetZ || 0);
+
+            pivot.add(model);
+            this.currentModel = pivot;
 
             // Hide until first tracking frame so it doesn't flash at center
-            this.currentModel.visible = false;
+            pivot.visible = false;
             this.modelVisible = false;
             this.firstTrackingFrame = true;
 
-            this.scene.add(this.currentModel);
+            this.scene.add(pivot);
 
             // Re-find skin materials for the new character
-            this.findSkinMaterials(this.currentModel);
+            this.findSkinMaterials(model);
 
             // Re-apply previous skin color if one was set
             if (previousSkinColor) {
@@ -813,7 +824,7 @@ class CharacterManager {
         const leftBlink = blendshapes.eyeBlinkLeft || 0;
         const rightBlink = blendshapes.eyeBlinkRight || 0;
 
-        leftEye.scale.y = 1 - leftBlink * 0.8;
+        leftEye.scale.y = 1 - leftBlink * 2;
         rightEye.scale.y = 1 - rightBlink * 0.8;
 
         // Animate mouth (smile and jaw open)

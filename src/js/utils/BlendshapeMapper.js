@@ -58,8 +58,8 @@ class BlendshapeMapper {
         // LOWER = eyes appear MORE OPEN at rest (less blink at neutral)
         // HIGHER = eyes appear MORE CLOSED at rest (more blink at neutral)
         this.baseline = {
-            leftEyeHeight: 0.008,    // ← Lowered: eyes now appear more open at rest
-            rightEyeHeight: 0.012,   // ← Lowered: eyes now appear more open at rest
+            leftEyeHeight: 0.009,    // Baseline for open eyes (matched for symmetry)
+            rightEyeHeight: 0.011,   // Baseline for open eyes (matched for symmetry)
             mouthHeight: 0.01,       // Closed mouth height
             mouthWidth: 0.15,        // Neutral mouth width
             faceHeight: 0.35         // Face height reference
@@ -70,33 +70,33 @@ class BlendshapeMapper {
         // =====================================================
         this.sensitivity = {
             // Eye blink (1 = closed, 0 = open) - TUNE EACH EYE SEPARATELY
-            eyeBlinkLeft: 1.5,       // Left eye blink sensitivity (needs >1.0 to reach full closure)
-            eyeBlinkRight: 1.5,      // Right eye blink sensitivity (needs >1.0 to reach full closure)
-            eyeWideLeft: 0.5,        // Left eye wide sensitivity (↑ = opens wider)
-            eyeWideRight: 1.0,       // Right eye wide sensitivity (↑ = opens wider)
+            eyeBlinkLeft: 1.0,       // Left eye blink sensitivity (lower = less sensitive)
+            eyeBlinkRight: 1.0,      // Right eye blink sensitivity (lower = less sensitive)
+            eyeWideLeft: 0.8,        // Left eye wide sensitivity (matched for symmetry)
+            eyeWideRight: 0.8,       // Right eye wide sensitivity (matched for symmetry)
 
             // Brows
-            browInnerUp: 25,         // Inner brow raise sensitivity (higher = more responsive)
-            browOuterUp: 25,         // Outer brow raise sensitivity
-            browDown: 20,            // Brow furrow/frown sensitivity
+            browInnerUp: 50,         // Inner brow raise sensitivity (higher = more responsive)
+            browOuterUp: 50,         // Outer brow raise sensitivity
+            browDown: 50,            // Brow furrow/frown sensitivity
 
             // Mouth
-            mouthSmile: 10,          // Smile corner elevation
-            mouthFrown: 10,          // Frown corner depression
-            mouthStretch: 3,         // Wide mouth stretch
-            mouthPucker: 3,          // Lips pushed forward
-            mouthShift: 20,          // Mouth left/right shift
+            mouthSmile: 50,          // Smile corner elevation
+            mouthFrown: 50,          // Frown corner depression
+            mouthStretch: 50,         // Wide mouth stretch
+            mouthPucker: 50,          // Lips pushed forward
+            mouthShift: 50,          // Mouth left/right shift
 
             // Jaw
             jawOpen: 3,              // Jaw open multiplier (divides mouth height)
             jawShift: 20,            // Jaw left/right shift
 
             // Cheeks / Nose
-            cheekPuff: 12,           // Cheek puff from width change (higher = more sensitive)
-            cheekPuffFromSmile: 0.7, // How much smile contributes to cheek puff (0-1)
-            cheekPuffBaseline: 3.6,  // Resting cheek/nose width ratio (tune per face, higher = less puff at rest)
-            cheekSquint: 15,         // Cheek squint sensitivity
-            noseSneer: 15            // Nose sneer sensitivity
+            cheekPuff: 50,            // Cheek puff from width change (lowered to ignore yaw drift)
+            cheekPuffFromSmile: 50, // How much smile contributes to cheek puff (0-1)
+            cheekPuffBaseline: 4.0,  // Resting ~3.6-3.7, yaw drift ~3.9, real puff ~4.5+
+            cheekSquint: 50,         // Cheek squint sensitivity
+            noseSneer: 50            // Nose sneer sensitivity
         };
     }
 
@@ -136,8 +136,8 @@ class BlendshapeMapper {
      */
     getFixedBaseline() {
         return {
-            leftEyeHeight: 0.002,    // Eye open height (lower = eyes appear more open at rest)
-            rightEyeHeight: 0.012,
+            leftEyeHeight: 0.011,    // Eye open height (lower = eyes appear more open at rest)
+            rightEyeHeight: 0.011,
             mouthHeight: 0.01,       // Typical closed mouth height
             mouthWidth: 0.15,        // Typical mouth width
             faceHeight: 0.35         // Typical face height
@@ -168,7 +168,7 @@ class BlendshapeMapper {
         // Eye blink: 1 = closed, 0 = open
         // When ratio < 1, eyes are more closed than baseline
         // Each eye has its own sensitivity for fine-tuning
-        const eyeBlinkLeft = Math.max(0, (1 - leftRatio) * this.sensitivity.eyeBlinkLeft);
+        const eyeBlinkLeft = Math.max(0, (0.5 - leftRatio) * this.sensitivity.eyeBlinkLeft);
         const eyeBlinkRight = Math.max(0, (1 - rightRatio) * this.sensitivity.eyeBlinkRight);
 
         // Eye wide: 1 = wide open, 0 = normal
@@ -304,43 +304,51 @@ class BlendshapeMapper {
     calculateExtendedBlendshapes(landmarks, existing) {
         const noseBottom = landmarks[2];
 
-        // --- Eye squint (driven by blink values + smile) ---
-        const eyeSquintLeft = this.clamp(
-            existing.eyeBlinkLeft * 0.5 + existing.mouthSmileLeft * 0.5, 0, 1
-        );
-        const eyeSquintRight = this.clamp(
-            existing.eyeBlinkRight * 0.5 + existing.mouthSmileRight * 0.5, 0, 1
-        );
+        // --- Eye squint (driven by smile only, NOT blink — blink was causing eyelid feedback) ---
+        const eyeSquintLeft = this.clamp(existing.mouthSmileLeft * 0.5, 0, 1);
+        const eyeSquintRight = this.clamp(existing.mouthSmileRight * 0.5, 0, 1);
 
-        // --- Cheek squint (subtle, only from actual eye narrowing, not smile) ---
-        // Measured from lower eyelid to cheek rising — not from smile to avoid
-        // fighting with cheekPuff which also fires on smile
+        // --- Cheek squint (use 2D distance so head rotation doesn't affect it) ---
         const leftLowerLid = landmarks[145];
         const leftUpperCheek = landmarks[117];
         const rightLowerLid = landmarks[374];
         const rightUpperCheek = landmarks[346];
+        const leftSquintDx = leftLowerLid.x - leftUpperCheek.x;
+        const leftSquintDy = leftLowerLid.y - leftUpperCheek.y;
+        const rightSquintDx = rightLowerLid.x - rightUpperCheek.x;
+        const rightSquintDy = rightLowerLid.y - rightUpperCheek.y;
         const cheekSquintLeft = this.clamp(
-            (leftLowerLid.y - leftUpperCheek.y) * this.sensitivity.cheekSquint, 0, 1
+            Math.sqrt(leftSquintDx * leftSquintDx + leftSquintDy * leftSquintDy) * this.sensitivity.cheekSquint, 0, 1
         );
         const cheekSquintRight = this.clamp(
-            (rightLowerLid.y - rightUpperCheek.y) * this.sensitivity.cheekSquint, 0, 1
+            Math.sqrt(rightSquintDx * rightSquintDx + rightSquintDy * rightSquintDy) * this.sensitivity.cheekSquint, 0, 1
         );
 
         // --- Cheek puff (cheeks push outward — from air puffing OR smiling) ---
-        // sensitivity.cheekPuffBaseline = resting cheek/nose ratio (tune this if puff triggers at rest)
+        // Uses cheek-to-cheek width vs nose width ratio
+        // Resting ratio ~3.6-3.7, puff ~4.5+ (cheek width / nose width)
+        // Nose width is stable during puffing (nose doesn't expand)
         const leftCheek = landmarks[123];
         const rightCheek = landmarks[352];
         const noseLeft = landmarks[98];
         const noseRight = landmarks[327];
-        const cheekWidth = Math.abs(leftCheek.x - rightCheek.x);
-        const noseWidth = Math.abs(noseLeft.x - noseRight.x);
+        const cheekDx = leftCheek.x - rightCheek.x;
+        const cheekDy = leftCheek.y - rightCheek.y;
+        const cheekWidth = Math.sqrt(cheekDx * cheekDx + cheekDy * cheekDy);
+        const noseDx = noseLeft.x - noseRight.x;
+        const noseDy = noseLeft.y - noseRight.y;
+        const noseWidth = Math.sqrt(noseDx * noseDx + noseDy * noseDy);
         const rawRatio = noseWidth > 0 ? cheekWidth / noseWidth : 0;
+        // Only trigger puff above a generous baseline to ignore yaw drift
+        // Resting ~3.6-3.7, yaw drift up to ~3.9, real puff ~4.5+
         const puffDelta = rawRatio - this.sensitivity.cheekPuffBaseline;
         const puffFromWidth = this.clamp(puffDelta * this.sensitivity.cheekPuff, 0, 1);
         const avgSmile = (existing.mouthSmileLeft + existing.mouthSmileRight) / 2;
-        // Subtract brow influence — raised brows shift cheek landmarks and cause false puff
         const browCompensation = existing.browInnerUp;
-        const cheekPuff = this.clamp(puffFromWidth + avgSmile * this.sensitivity.cheekPuffFromSmile - browCompensation, 0, 1);
+        const cheekPuff = this.clamp(
+            puffFromWidth + avgSmile * this.sensitivity.cheekPuffFromSmile - browCompensation,
+            0, 1
+        );
 
         // --- Nose sneer (upper lip area lifts near nose) ---
         // Measure elevation of upper lip landmarks near nose relative to nose bottom
@@ -449,7 +457,11 @@ class BlendshapeMapper {
         for (let i = 0; i < numPairs; i++) {
             const upper = landmarks[upperIndices[i]];
             const lower = landmarks[lowerIndices[i]];
-            totalHeight += Math.abs(upper.y - lower.y);
+            // Use full 2D distance instead of just Y, so head rotation doesn't
+            // compress the measurement and cause false blinks
+            const dx = upper.x - lower.x;
+            const dy = upper.y - lower.y;
+            totalHeight += Math.sqrt(dx * dx + dy * dy);
         }
 
         return totalHeight / numPairs;

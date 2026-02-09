@@ -209,19 +209,20 @@ class FaceTracker {
 
         // PITCH (up-down head tilt)
         // Calculate from vertical relationship between forehead, nose, and chin
+        // Note: noseZDiff was removed — it's contaminated by yaw (turning head
+        // left/right changes nose tip Z relative to bridge, leaking yaw into pitch)
         const foreheadToNoseY = noseBridge.y - forehead.y;
         const noseToChinY = chin.y - noseBridge.y;
         const verticalRatio = foreheadToNoseY / (noseToChinY + 0.001);
-        // Also use Z depth difference between nose tip and nose bridge
-        const noseZDiff = (noseTip.z || 0) - (noseBridge.z || 0);
-        // Combine signals (INVERTED for correct direction)
-        const pitch = -(((verticalRatio - 0.8) * 2) + (noseZDiff * 5));
+        const pitch = -((verticalRatio - 0.8) * 2);
 
         // ROLL (head tilt - ear to shoulder)
-        // Calculate from angle of line between eyes
+        // Use 3D horizontal span (X² + Z²) so yaw foreshortening doesn't inflate roll
+        const eyeDx = rightEyeOuter.x - leftEyeOuter.x;
+        const eyeDz = (rightEyeOuter.z || 0) - (leftEyeOuter.z || 0);
         const rollAngle = Math.atan2(
             rightEyeOuter.y - leftEyeOuter.y,
-            rightEyeOuter.x - leftEyeOuter.x
+            Math.sqrt(eyeDx * eyeDx + eyeDz * eyeDz)
         );
         const roll = rollAngle;
 

@@ -108,9 +108,6 @@ class FilterApp {
                             autoplay>
                         </dotlottie-player>
                         <div class="loading-text">Initializing camera...</div>
-                        <div class="loading-progress">
-                            <div class="loading-progress-bar" id="loading-progress-bar"></div>
-                        </div>
                     </div>
                 </div>
                 <div class="video-container">
@@ -162,8 +159,8 @@ class FilterApp {
                             <button id="resync-btn" class="effect-item" title="Resync" aria-label="Resync face tracking">
                                 <i data-lucide="refresh-cw"></i>
                             </button>
-                            <button id="close-btn" class="effect-item" title="Close" aria-label="Close filter">
-                                <i data-lucide="x"></i>
+                            <button id="streamer-btn" class="effect-item" title="Streamer" aria-label="Toggle streamer mode">
+                                <i data-lucide="monitor"></i>
                             </button>
                         </div>
                     </div>
@@ -248,7 +245,6 @@ class FilterApp {
         // Loading overlay elements
         this.loadingOverlay = this.root.querySelector('#loading-overlay');
         this.loadingText = this.root.querySelector('.loading-text');
-        this.loadingProgressBar = this.root.querySelector('#loading-progress-bar');
 
         // New UI elements
         this.captureBtn = this.root.querySelector('#capture-btn');
@@ -277,7 +273,7 @@ class FilterApp {
         this.muteBtn = this.root.querySelector('#mute-btn');
         this.timerToggleBtn = this.root.querySelector('#timer-toggle-btn');
         this.resyncBtn = this.root.querySelector('#resync-btn');
-        this.closeBtn = this.root.querySelector('#close-btn');
+        this.streamerBtn = this.root.querySelector('#streamer-btn');
 
         // Effects lists
         this.virtualBackgroundsList = this.root.querySelector('#virtual-backgrounds-list');
@@ -360,11 +356,7 @@ class FilterApp {
                 this.characterManager.resync();
             }
         });
-        this.closeBtn.addEventListener('click', () => {
-            // Close/exit the filter experience
-            this.destroy();
-            this.root.innerHTML = '';
-        });
+        this.streamerBtn.addEventListener('click', () => this.toggleStreamerMode());
 
         // Listen for fullscreen changes
         document.addEventListener('fullscreenchange', () => this.updateFullscreenIcon());
@@ -406,24 +398,18 @@ class FilterApp {
     async initializeModules() {
         console.log('Initializing modules...');
 
-        // 1. Camera Manager (no dependencies) - 0-20%
+        // 1. Camera Manager (no dependencies)
         this.updateLoadingText('Setting up camera...');
-        this.updateLoadingProgress(5);
         this.cameraManager = new CameraManager(this.videoElement);
-        this.updateLoadingProgress(20);
 
-        // 2. Three.js Renderer (needs canvas element) - 20-40%
+        // 2. Three.js Renderer (needs canvas element)
         this.updateLoadingText('Initializing 3D engine...');
-        this.updateLoadingProgress(25);
         this.renderer = new ThreeRenderer(this.canvasElement, this.events);
-        this.updateLoadingProgress(40);
 
-        // 3. Character Manager (needs Three.js scene) - 40-80%
+        // 3. Character Manager (needs Three.js scene)
         this.updateLoadingText('Loading character...');
-        this.updateLoadingProgress(45);
         this.characterManager = new CharacterManager(this.renderer.scene, this.events, this.renderer.camera);
         await this.characterManager.initialize();
-        this.updateLoadingProgress(80);
 
         // Populate character selector after characters are loaded
         this.populateCharacterDots();
@@ -433,26 +419,22 @@ class FilterApp {
             this.updateCharacterDotThumbnail(data.index, data.thumbnail);
         });
 
-        // 4. Face Tracker (needs video element and event emitter) - 80-90%
+        // 4. Face Tracker (needs video element and event emitter)
         this.updateLoadingText('Starting face tracking...');
-        this.updateLoadingProgress(85);
         this.faceTracker = new FaceTracker(this.videoElement, this.events);
 
         // 5. UI Controller (needs container element)
         this.uiController = new UIController(this.root, this.events);
         this.uiController.initialize();
-        this.updateLoadingProgress(90);
 
         // 6. Media Capture (needs canvas and video elements)
         this.mediaCapture = new MediaCapture(this.canvasElement, this.videoElement, this.events);
         await this.mediaCapture.initialize();
-        this.updateLoadingProgress(92);
 
         // 7. Segmentation Manager (for virtual backgrounds)
         this.segmentationManager = new SegmentationManager(this.videoElement, this.events);
         await this.segmentationManager.initialize();
         this.mediaCapture.setSegmentationManager(this.segmentationManager);
-        this.updateLoadingProgress(95);
 
         // Wire up events
         this.setupEventHandlers();
@@ -657,25 +639,17 @@ class FilterApp {
 
         // Start camera
         this.updateLoadingText('Starting camera...');
-        this.updateLoadingProgress(96);
         await this.cameraManager.start();
         this.state.cameraActive = true;
-        this.updateLoadingProgress(97);
 
         // Start renderer
         this.renderer.start();
         this.state.renderingActive = true;
-        this.updateLoadingProgress(98);
 
         // Start face tracking (after camera is ready)
         this.updateLoadingText('Starting face tracking...');
         await this.faceTracker.start();
         this.state.faceTracking = true;
-        this.updateLoadingProgress(99);
-
-        // Segmentation will be started on-demand when virtual background is enabled
-        // (we don't call start() here - the render loop will drive processCurrentFrame)
-        this.updateLoadingProgress(100);
 
         // Hide loading overlay - we're ready!
         this.hideLoading();
@@ -1103,16 +1077,6 @@ class FilterApp {
     }
 
     /**
-     * Update loading progress bar
-     * @param {number} percent - Progress percentage (0-100)
-     */
-    updateLoadingProgress(percent) {
-        if (this.loadingProgressBar) {
-            this.loadingProgressBar.style.width = `${percent}%`;
-        }
-    }
-
-    /**
      * Hide loading overlay
      */
     hideLoading() {
@@ -1376,6 +1340,9 @@ class FilterApp {
                 case 'e': // E - effects panel
                     this.toggleDropdown('effects');
                     break;
+                case 'h': // H - streamer mode (hide/show UI)
+                    this.toggleStreamerMode();
+                    break;
                 case 'Escape': // Escape - close dropdowns
                     this.closeAllDropdowns();
                     break;
@@ -1428,6 +1395,58 @@ class FilterApp {
         this.fullscreenBtn.setAttribute('aria-label', isFullscreen ? 'Exit fullscreen' : 'Enter fullscreen');
     }
 
+
+    /**
+     * Toggle streamer mode (hide/show all UI for clean camera view)
+     */
+    toggleStreamerMode() {
+        this.streamerMode = !this.streamerMode;
+
+        // Close any open dropdowns first
+        this.closeAllDropdowns();
+        this.characterPicker?.classList.remove('visible');
+
+        // UI elements to toggle
+        const selectors = [
+            '.top-controls',
+            '.bottom-island',
+            '.character-selector',
+            '.recording-indicator',
+            '.character-picker'
+        ];
+
+        const container = this.root.querySelector('.filter-container');
+        selectors.forEach(sel => {
+            const el = container.querySelector(sel);
+            if (el) {
+                el.style.display = this.streamerMode ? 'none' : '';
+            }
+        });
+
+        // Show toast when hiding UI
+        if (this.streamerMode) {
+            this.showStreamerToast();
+        }
+    }
+
+    /**
+     * Show streamer mode toast message
+     */
+    showStreamerToast() {
+        const container = this.root.querySelector('.filter-container');
+
+        // Remove existing toast if any
+        const existing = container.querySelector('.streamer-toast');
+        if (existing) existing.remove();
+
+        const toast = document.createElement('div');
+        toast.className = 'streamer-toast';
+        toast.textContent = 'Press H to show controls';
+        container.appendChild(toast);
+
+        // Remove after animation completes (5s)
+        setTimeout(() => toast.remove(), 5000);
+    }
 
     /**
      * Populate effects and filters lists
